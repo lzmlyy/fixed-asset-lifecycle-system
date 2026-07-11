@@ -558,4 +558,41 @@ onMounted(() => {
   .charts-grid { grid-template-columns: repeat(2, 1fr); }
   .sections-grid { grid-template-columns: 1fr; }
 }
+
+@media (max-width: 768px) {
+  .welcome-bar {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 16px;
+  }
+  .welcome-right {
+    flex-wrap: wrap;
+  }
+  .welcome-title {
+    font-size: 17px;
+  }
+  .stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+  }
+  .stats-grid-status {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .charts-grid {
+    grid-template-columns: 1fr;
+  }
+  .chart {
+    height: 240px;
+  }
+  .sections-grid {
+    grid-template-columns: 1fr;
+  }
+  .quick-actions-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .audit-stats {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
 </style>

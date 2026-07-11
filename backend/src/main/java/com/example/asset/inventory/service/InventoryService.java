@@ -24,18 +24,19 @@ import com.example.asset.inventory.vo.InventoryResultVO;
 import com.example.asset.inventory.vo.InventoryTaskVO;
 import com.example.asset.inventory.vo.LookupVO;
 import com.example.asset.inventory.vo.QuickScanVO;
-import net.sourceforge.tess4j.Tesseract;
-import net.sourceforge.tess4j.TesseractException;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
-import javax.imageio.ImageIO;
-import java.awt.image.BufferedImage;
-import java.io.File;
 import java.io.IOException;
+import java.io.OutputStream;
+import java.net.HttpURLConnection;
+import java.net.URI;
+import java.net.URL;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -52,18 +53,15 @@ public class InventoryService {
     private final InventoryRecordMapper inventoryRecordMapper;
     private final InventoryResultMapper inventoryResultMapper;
     private final AssetMapper assetMapper;
-    private final Tesseract tesseract;
 
     public InventoryService(InventoryTaskMapper inventoryTaskMapper,
                             InventoryRecordMapper inventoryRecordMapper,
                             InventoryResultMapper inventoryResultMapper,
-                            AssetMapper assetMapper,
-                            Tesseract tesseract) {
+                            AssetMapper assetMapper) {
         this.inventoryTaskMapper = inventoryTaskMapper;
         this.inventoryRecordMapper = inventoryRecordMapper;
         this.inventoryResultMapper = inventoryResultMapper;
         this.assetMapper = assetMapper;
-        this.tesseract = tesseract;
     }
 
     public PageResult<InventoryTaskVO> page(InventoryTaskQueryRequest query) {
@@ -542,28 +540,35 @@ public class InventoryService {
         }
     }
 
+    private static final ObjectMapper objectMapper = new ObjectMapper();
+    private static final String OCR_SERVICE_URL = "http://127.0.0.1:8866/";
+
     public String performOcr(MultipartFile imageFile) {
-        File tempFile = null;
         try {
-            tempFile = File.createTempFile("ocr_", ".png");
-            BufferedImage image = ImageIO.read(imageFile.getInputStream());
-            if (image == null) {
-                throw new BusinessException(ResultCode.BAD_REQUEST, "无法读取图片文件");
+            byte[] imageBytes = imageFile.getBytes();
+            URL url = URI.create(OCR_SERVICE_URL).toURL();
+            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+            conn.setRequestMethod("POST");
+            conn.setDoOutput(true);
+            conn.setConnectTimeout(5000);
+            conn.setReadTimeout(15000);
+            conn.setRequestProperty("Content-Type", "application/octet-stream");
+            try (OutputStream os = conn.getOutputStream()) {
+                os.write(imageBytes);
             }
-            ImageIO.write(image, "png", tempFile);
-            String text = tesseract.doOCR(tempFile);
-            log.info("OCR completed, text length: {}", text != null ? text.length() : 0);
-            return text != null ? text.trim() : "";
-        } catch (TesseractException e) {
-            log.error("OCR recognition failed", e);
-            throw new BusinessException(ResultCode.INTERNAL_ERROR, "OCR 识别失败，请确认 Tesseract 已正确安装");
+            String response = new String(conn.getInputStream().readAllBytes());
+            JsonNode node = objectMapper.readTree(response);
+            if (node.get("success").asBoolean()) {
+                String text = node.get("text").asText();
+                log.info("PaddleOCR completed, text length: {}", text.length());
+                return text.trim();
+            }
+            String error = node.has("error") ? node.get("error").asText() : "unknown";
+            log.error("PaddleOCR failed: {}", error);
+            throw new BusinessException(ResultCode.INTERNAL_ERROR, "OCR 识别失败: " + error);
         } catch (IOException e) {
-            log.error("Failed to read image for OCR", e);
-            throw new BusinessException(ResultCode.BAD_REQUEST, "图片读取失败");
-        } finally {
-            if (tempFile != null && tempFile.exists()) {
-                tempFile.delete();
-            }
+            log.error("OCR service call failed", e);
+            throw new BusinessException(ResultCode.INTERNAL_ERROR, "OCR 服务不可用，请确认 PaddleOCR 服务已启动");
         }
     }
 

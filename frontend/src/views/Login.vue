@@ -71,6 +71,7 @@ async function handleLogin() {
   display: flex;
   height: 100vh;
   width: 100%;
+  min-height: 100dvh;
 }
 .login-left {
   flex: 1;
@@ -131,5 +132,61 @@ async function handleLogin() {
   font-size: 12px;
   color: var(--color-text-secondary);
   margin-top: 12px;
+}
+
+@media (max-width: 768px) {
+  .login-page {
+    flex-direction: column;
+    background: linear-gradient(135deg, #173B57 0%, #1A4F6E 100%);
+  }
+  .login-left {
+    flex: 0 0 auto;
+    padding: 24px 20px 12px;
+    background: transparent;
+  }
+  .left-content {
+    padding: 0;
+    text-align: center;
+  }
+  .system-title {
+    font-size: 20px;
+    margin-bottom: 8px;
+  }
+  .system-title br {
+    display: none;
+  }
+  .system-desc {
+    font-size: 13px;
+    margin-bottom: 12px;
+  }
+  .feature-list {
+    display: none;
+  }
+  .login-right {
+    flex: 1;
+    width: 100%;
+    background: transparent;
+    align-items: flex-start;
+    padding-top: 20px;
+  }
+  .login-card {
+    width: 86%;
+    max-width: 340px;
+    background: #fff;
+    padding: 28px 24px;
+    border-radius: 12px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  }
+  .login-title {
+    font-size: 20px;
+    text-align: center;
+  }
+  .login-hint {
+    text-align: center;
+    margin-bottom: 24px;
+  }
+  .login-tip {
+    font-size: 11px;
+  }
 }
 </style>

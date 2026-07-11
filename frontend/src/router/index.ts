@@ -159,6 +159,37 @@ const router = createRouter({
       ]
     },
     {
+      path: '/m',
+      component: () => import('@/layouts/MobileLayout.vue'),
+      redirect: '/m/dashboard',
+      children: [
+        {
+          path: 'dashboard',
+          name: 'MobileDashboard',
+          component: () => import('@/views/mobile/MobileDashboard.vue'),
+          meta: { title: '首页驾驶舱' }
+        },
+        {
+          path: 'assets',
+          name: 'MobileAssets',
+          component: () => import('@/views/mobile/MobileAssets.vue'),
+          meta: { title: '资产台账' }
+        },
+        {
+          path: 'inventory',
+          name: 'MobileInventory',
+          component: () => import('@/views/mobile/MobileInventory.vue'),
+          meta: { title: '快速盘点' }
+        },
+        {
+          path: 'me',
+          name: 'MobileMe',
+          component: () => import('@/views/mobile/MobileMe.vue'),
+          meta: { title: '个人中心' }
+        }
+      ]
+    },
+    {
       path: '/:pathMatch(.*)*',
       redirect: '/dashboard'
     }

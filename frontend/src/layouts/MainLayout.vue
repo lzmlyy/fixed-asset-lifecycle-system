@@ -1,6 +1,9 @@
 <template>
   <div class="app-container">
-    <div class="sidebar">
+    <transition name="slide-fade">
+      <div v-if="sidebarOpen" class="sidebar-overlay" @click="sidebarOpen = false"></div>
+    </transition>
+    <div class="sidebar" :class="{ 'sidebar-open': sidebarOpen }">
       <div class="sidebar-logo">
         <h1>固定资产管理系统</h1>
       </div>
@@ -10,6 +13,7 @@
         :collapse="false"
         text-color="#DDE7EF"
         active-text-color="#fff"
+        @select="onMenuSelect"
       >
         <el-menu-item index="/dashboard" v-if="authStore.hasPermission('dashboard:view')">
           <el-icon><Monitor /></el-icon>
@@ -79,13 +83,16 @@
     <div class="main-area">
       <div class="top-bar">
         <div class="top-bar-left">
+          <span class="menu-btn" @click="sidebarOpen = !sidebarOpen">
+            <el-icon :size="20"><component :is="sidebarOpen ? Close : Expand" /></el-icon>
+          </span>
           <span class="breadcrumb">{{ pageTitle }}</span>
         </div>
         <div class="top-bar-right">
           <el-tag size="small" type="primary" effect="dark" class="role-chip">{{ roleLabel }}</el-tag>
           <span class="user-dept" v-if="userInfo?.department">{{ userInfo.department }}</span>
           <span class="user-name">{{ userInfo?.realName || userInfo?.username || '用户' }}</span>
-          <el-button text @click="handleLogout">退出登录</el-button>
+          <el-button text @click="handleLogout" class="logout-btn">退出登录</el-button>
         </div>
       </div>
       <div class="main-content">
@@ -96,15 +103,18 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useAppStore } from '@/stores/app'
+import { Expand, Close } from '@element-plus/icons-vue'
 
 const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
 const appStore = useAppStore()
+
+const sidebarOpen = ref(false)
 
 const currentRoute = computed(() => route.path)
 const pageTitle = computed(() => appStore.pageTitle)
@@ -140,6 +150,10 @@ onMounted(() => {
 function handleLogout() {
   authStore.logout()
   router.push('/login')
+}
+
+function onMenuSelect() {
+  sidebarOpen.value = false
 }
 </script>
 

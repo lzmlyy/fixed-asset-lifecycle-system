@@ -516,4 +516,30 @@ onMounted(() => {
   color: var(--color-text-secondary);
   padding: 0 var(--space-md) var(--space-md);
 }
+
+@media (max-width: 768px) {
+  .filter-card {
+    padding: 10px;
+  }
+  .filter-form :deep(.el-form-item) {
+    margin-right: 0;
+    margin-bottom: 6px;
+    display: block;
+  }
+  .filter-form :deep(.el-form-item .el-form-item__content) {
+    margin-left: 0 !important;
+  }
+  .table-card {
+    padding: 8px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .table-card :deep(.el-table) {
+    min-width: 900px;
+  }
+  .table-card :deep(.el-pagination) {
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+}
 </style>

@@ -153,3 +153,94 @@
   overflow-y: auto;
   background-color: var(--color-bg);
 }
+
+/* ===== 移动端汉堡按钮 ===== */
+.menu-btn {
+  display: none;
+  cursor: pointer;
+  color: var(--color-text-secondary);
+  padding: 4px;
+  border-radius: var(--radius-sm);
+}
+.menu-btn:hover {
+  background: var(--color-bg-soft);
+  color: var(--color-primary);
+}
+
+/* ===== 侧边栏遮罩层 ===== */
+.sidebar-overlay {
+  display: none;
+}
+
+/* ===== 移动端适配 ===== */
+@media (max-width: 768px) {
+  .menu-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .sidebar-overlay {
+    display: block;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.45);
+    z-index: 98;
+  }
+
+  .sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    z-index: 99;
+    width: 260px;
+    transform: translateX(-100%);
+    transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 2px 0 8px rgba(0, 0, 0, 0.15);
+  }
+  .sidebar.sidebar-open {
+    transform: translateX(0);
+  }
+
+  .top-bar {
+    padding: 0 12px;
+    height: 48px;
+  }
+
+  .top-bar-left {
+    gap: 6px;
+  }
+  .top-bar-left .breadcrumb {
+    font-size: 13px;
+  }
+
+  .top-bar-right .user-dept {
+    display: none;
+  }
+  .top-bar-right .user-name {
+    display: none;
+  }
+  .top-bar-right .logout-btn {
+    display: none;
+  }
+  .top-bar-right {
+    gap: 6px;
+  }
+
+  .main-content {
+    padding: 12px;
+  }
+}
+
+.slide-fade-enter-active,
+.slide-fade-leave-active {
+  transition: opacity 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.slide-fade-enter-from,
+.slide-fade-leave-to {
+  opacity: 0;
+}

@@ -266,9 +266,19 @@
           <el-tabs v-model="scanMode" class="qs-tabs">
             <el-tab-pane label="二维码扫码" name="qr">
               <div class="qs-qr-wrap">
-                <div id="task-qr-reader" class="qs-qr"></div>
-                <div v-if="qrErr" class="qs-err"><el-alert type="warning" :closable="false" show-icon><template #title>{{ qrErr }}</template></el-alert><el-button type="primary" style="margin-top:12px" @click="startQr">重试</el-button></div>
-                <div v-if="!qrOk && !qrErr" class="qs-load"><el-icon class="is-loading" :size="28"><Loading /></el-icon><p>启动摄像头...</p></div>
+                <div v-if="!qrImg" class="qs-qr-empty">
+                  <el-button type="primary" size="large" @click="scanQr">
+                    <el-icon :size="20"><Camera /></el-icon> 点击拍照扫码
+                  </el-button>
+                  <p style="color:rgba(255,255,255,0.5);font-size:13px;margin-top:10px">拍照后自动识别图中的资产二维码</p>
+                  <input ref="qrInp" type="file" accept="image/*" capture="environment" style="display:none" @change="onQrFile" />
+                </div>
+                <div v-else class="qs-qr-has">
+                  <img :src="qrImg" style="max-width:100%;max-height:50vh;border-radius:6px" />
+                  <div v-if="qrBusy" class="qs-err"><el-icon class="is-loading"><Loading /></el-icon> 解码中...</div>
+                  <div v-else-if="qrDecoded" style="color:#18A058;font-size:16px;font-weight:700;padding:12px">识别成功: {{ qrDecoded }}</div>
+                  <div v-else class="qs-err"><el-tag type="danger">未识别到二维码</el-tag><el-button size="small" style="margin-top:8px" @click="qrImg=null;qrDecoded=null">重拍</el-button></div>
+                </div>
               </div>
             </el-tab-pane>
             <el-tab-pane label="拍照 OCR" name="ocr">
@@ -327,7 +337,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, nextTick, onBeforeUnmount } from 'vue'
+import { ref, reactive, computed } from 'vue'
 import { ElMessage, ElMessageBox, type FormInstance } from 'element-plus'
 import PageHeader from '@/components/PageHeader.vue'
 import {
@@ -347,7 +357,6 @@ import {
 import { Download, CircleCheck, Loading, Plus, Camera } from '@element-plus/icons-vue'
 import { exportInventoryTasks, exportInventoryTaskRecords } from '@/api/export'
 import { useMasterDataOptions } from '@/composables/useMasterDataOptions'
-import { Html5Qrcode } from 'html5-qrcode'
 import jsqr from 'jsqr'
 
 const { departmentOptions, locationOptions, keeperOptions, loadAll: loadMasterData } = useMasterDataOptions()
@@ -648,9 +657,10 @@ const scanning = ref(false)
 const scanLog = ref<{code:string;name:string;ok:boolean}[]>([])
 const scanned = ref<Set<string>>(new Set())
 
-let qrInstance: Html5Qrcode | null = null
-const qrOk = ref(false)
-const qrErr = ref('')
+const qrImg = ref<string|null>(null)
+const qrBusy = ref(false)
+const qrDecoded = ref<string|null>(null)
+const qrInp = ref<HTMLInputElement|null>(null)
 const ocrImg = ref<string|null>(null)
 const ocrTxt = ref('')
 const ocrBusy = ref(false)
@@ -662,38 +672,34 @@ const fileInp = ref<HTMLInputElement|null>(null)
 async function openQuickScan(task: InventoryTaskItem) {
   quickScanTask.value = task
   quickScanVisible.value = true
-  await nextTick()
-  startQr()
 }
 
 function stopQuickScan() {
-  stopQr()
   lookupAsset.value = null
+  qrImg.value = null; qrDecoded.value = null
   ocrImg.value = null; ocrTxt.value = ''; ocrCode.value = ''; ocrBusy.value = false
 }
 
-function startQr() {
-  stopQr(); qrErr.value = ''; qrOk.value = false
-  try {
-    qrInstance = new Html5Qrcode('task-qr-reader')
-    qrInstance.start({ facingMode: 'environment' }, { fps: 10, qrbox: { width: 220, height: 220 } },
-      async (text: string) => { if (text) { await doLookup(text.trim()) } },
-      () => {}
-    ).then(() => { qrOk.value = true }).catch(async () => {
-      try {
-        await qrInstance!.start({ facingMode: { exact: 'user' } }, { fps: 10, qrbox: { width: 220, height: 220 } },
-          async (text: string) => { if (text) { await doLookup(text.trim()) } },
-          () => {}
-        )
-        qrOk.value = true
-      } catch (e2: any) { qrErr.value = '摄像头启动失败: ' + (e2?.message||'') }
-    })
-  } catch (e: any) { qrErr.value = e?.message||'' }
-}
+function scanQr() { qrInp.value?.click() }
 
-function stopQr() {
-  if (qrInstance) { qrInstance.stop().catch(()=>{}); qrInstance = null }
-  qrOk.value = false
+async function onQrFile(e: Event) {
+  const input = e.target as HTMLInputElement
+  const f = input.files?.[0]
+  if (!f) return
+  if (qrImg.value && qrImg.value.startsWith('blob:')) { URL.revokeObjectURL(qrImg.value) }
+  qrImg.value = URL.createObjectURL(f); qrBusy.value = true
+  input.value = ''
+  try {
+    const img = await loadImage(f)
+    const result = decodeQrFromImage(img)
+    if (result) {
+      qrDecoded.value = result
+      await doLookup(result.trim())
+    } else {
+      qrDecoded.value = null
+      ElMessage.warning('未识别到二维码')
+    }
+  } catch { qrDecoded.value = null; ElMessage.error('解码失败') } finally { qrBusy.value = false }
 }
 
 async function doLookup(code: string) {
@@ -744,10 +750,21 @@ async function doScan() {
 function takePhoto() { camInp.value?.click() }
 function pickFile() { fileInp.value?.click() }
 
-async function onCam(e: Event) { const f = (e.target as HTMLInputElement).files?.[0]; if (f) await procImg(f) }
-async function onFile(e: Event) { const f = (e.target as HTMLInputElement).files?.[0]; if (f) await procImg(f) }
+async function onCam(e: Event) {
+  const input = e.target as HTMLInputElement
+  const f = input.files?.[0]
+  input.value = ''
+  if (f) await procImg(f)
+}
+async function onFile(e: Event) {
+  const input = e.target as HTMLInputElement
+  const f = input.files?.[0]
+  input.value = ''
+  if (f) await procImg(f)
+}
 
 async function procImg(file: File) {
+  if (ocrImg.value && ocrImg.value.startsWith('blob:')) { URL.revokeObjectURL(ocrImg.value) }
   ocrImg.value = URL.createObjectURL(file); ocrBusy.value = true; ocrTxt.value = ''
 
   try {
@@ -775,9 +792,10 @@ async function procImg(file: File) {
 function loadImage(file: File): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const img = new Image()
-    img.onload = () => resolve(img)
-    img.onerror = reject
-    img.src = URL.createObjectURL(file)
+    const url = URL.createObjectURL(file)
+    img.onload = () => { URL.revokeObjectURL(url); resolve(img) }
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('图片加载失败')) }
+    img.src = url
   })
 }
 
@@ -800,8 +818,6 @@ function decodeQrFromImage(img: HTMLImageElement): string | null {
 
 function lookupByOcr() { if (ocrCode.value) doLookup(ocrCode.value.trim()) }
 function lookupMan() { if (manCode.value) { doLookup(manCode.value.trim()); manCode.value = '' } }
-
-onBeforeUnmount(() => { stopQr() })
 
 // 初始化加载
 loadTasks()
@@ -856,9 +872,9 @@ loadMasterData()
 .qs-tabs { flex: 1; display: flex; flex-direction: column; }
 .qs-tabs :deep(.el-tabs__content) { flex: 1; overflow: hidden; }
 .qs-tabs :deep(.el-tab-pane) { height: 100%; }
-.qs-qr-wrap { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #000; border-radius: 8px; overflow: hidden; min-height: 350px; }
-.qs-qr { width: 100%; max-width: 450px; }
-.qs-qr :deep(video) { width: 100% !important; max-height: 55vh !important; }
+.qs-qr-wrap { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #0d1117; border-radius: 8px; overflow: hidden; min-height: 350px; }
+.qs-qr-empty { text-align: center; display: flex; flex-direction: column; align-items: center; }
+.qs-qr-has { display: flex; flex-direction: column; align-items: center; padding: 16px; }
 .qs-err, .qs-load { text-align: center; padding: 40px; color: #999; }
 .qs-ocr { flex: 1; padding: 20px; display: flex; flex-direction: column; align-items: center; }
 .qs-ocr-empty { margin-top: 60px; }
@@ -878,4 +894,41 @@ loadMasterData()
 .qs-log-top { display: flex; justify-content: space-between; align-items: center; }
 .qs-log-code { font-size: 12px; font-weight: 600; font-family: monospace; }
 .qs-log-nm { font-size: 11px; color: #999; margin-top: 2px; }
+
+@media (max-width: 768px) {
+  .panel {
+    padding: 8px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .panel :deep(.el-table) {
+    min-width: 750px;
+  }
+  .filter-bar {
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .pagination-bar {
+    justify-content: center;
+  }
+  .scan-dialog :deep(.el-dialog__body) {
+    padding: 4px 8px;
+    height: auto;
+    overflow: auto;
+  }
+  .qs-body {
+    flex-direction: column;
+  }
+  .qs-left {
+    height: 350px;
+    flex-shrink: 0;
+  }
+  .qs-right {
+    width: 100%;
+  }
+  .qs-man {
+    padding: 30px 10px;
+    flex-wrap: wrap;
+  }
+}
 </style>

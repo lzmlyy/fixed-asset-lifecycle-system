@@ -28,9 +28,6 @@ asset:
     secret: ${JWT_SECRET:fixed-asset-lifecycle-system-jwt-secret-key-2026-asset-platform}
     expiration-minutes: 720
 
-tesseract:
-  datapath: ${TESSDATA_PREFIX:D:/idea/hw/fixed-asset-lifecycle-system/tesseract-5.5.2/tessdata}
-
 ai:
   enabled: ${AI_ENABLED:true}
   provider: deepseek

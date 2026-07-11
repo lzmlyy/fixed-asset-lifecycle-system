@@ -1,0 +1,57 @@
+@media (max-width: 768px) {
+  .el-table {
+    min-width: 650px;
+  }
+  .table-card,
+  .el-card,
+  .panel {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 8px;
+  }
+
+  .el-pagination {
+    justify-content: center !important;
+    flex-wrap: wrap;
+  }
+
+  .el-pagination__total {
+    display: block;
+    text-align: center;
+    width: 100%;
+    margin-bottom: 6px;
+  }
+
+  .el-form--inline .el-form-item {
+    display: block;
+    margin-right: 0;
+    margin-bottom: 8px;
+  }
+  .el-form--inline .el-form-item .el-form-item__content {
+    margin-left: 0 !important;
+  }
+
+  .el-dialog {
+    width: 92% !important;
+    max-width: 92vw !important;
+    margin-top: 4vh !important;
+  }
+
+  .el-descriptions__body .el-descriptions__table:not(.is-bordered) .el-descriptions__cell {
+    display: block;
+    width: 100% !important;
+  }
+
+  .el-descriptions--border .el-descriptions__cell {
+    display: block;
+    width: 100% !important;
+  }
+
+  .el-step__description {
+    max-width: 100%;
+  }
+
+  .el-tabs__nav-wrap::after {
+    height: 1px;
+  }
+}

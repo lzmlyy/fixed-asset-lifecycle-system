@@ -9,6 +9,7 @@ import router from './router'
 import './styles/variables.css'
 import './styles/global.css'
 import './styles/layout.css'
+import './styles/mobile.css'
 
 const app = createApp(App)
 const pinia = createPinia()

@@ -109,7 +109,8 @@ import { ref, watch, nextTick, onBeforeUnmount } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Loading, Camera } from '@element-plus/icons-vue'
 import { Html5Qrcode } from 'html5-qrcode'
-import { lookupInventoryRecord, performOcr, scanInventoryRecord } from '@/api/inventory'
+import { BinaryBitmap, DecodeHintType, BarcodeFormat, GlobalHistogramBinarizer, HybridBinarizer, QRCodeReader, RGBLuminanceSource } from '@zxing/library'
+import { lookupInventoryRecord, scanInventoryRecord, performOcr } from '@/api/inventory'
 
 const props = defineProps<{
   visible: boolean
@@ -321,23 +322,46 @@ function triggerUpload() {
 }
 
 async function onCameraCapture(e: Event) {
-  const file = (e.target as HTMLInputElement).files?.[0]
+  const input = e.target as HTMLInputElement
+  const file = input.files?.[0]
   if (!file) return
+  input.value = ''  // 清空 input，确保选择同一文件时仍能触发 change
   await processImage(file)
 }
 
 async function onFileUpload(e: Event) {
-  const file = (e.target as HTMLInputElement).files?.[0]
+  const input = e.target as HTMLInputElement
+  const file = input.files?.[0]
   if (!file) return
+  input.value = ''
   await processImage(file)
 }
 
 async function processImage(file: File) {
+  // 先清除旧图片的 Blob URL
+  if (ocrImage.value && ocrImage.value.startsWith('blob:')) { URL.revokeObjectURL(ocrImage.value) }
   ocrImage.value = URL.createObjectURL(file)
   ocrLoading.value = true
   ocrText.value = ''
 
   try {
+    const img = await loadImage(file)
+    const qrRes = decodeQrFromImage(img)
+    if (qrRes) {
+      const assetCodeMatch = qrRes.match(/(?:FA|ZC)[A-Z0-9\-]+/i)
+      if (assetCodeMatch) {
+        extractedAssetCode.value = assetCodeMatch[0].toUpperCase()
+        ocrText.value = '二维码识别结果: ' + qrRes
+        ElMessage.success('识别到二维码: ' + qrRes)
+      } else {
+        extractedAssetCode.value = ''
+        ocrText.value = qrRes
+        ElMessage.warning('未能从识别结果中提取资产编号，请手动输入')
+      }
+      ocrLoading.value = false
+      return
+    }
+
     const formData = new FormData()
     formData.append('image', file)
     const r = await performOcr(formData)
@@ -352,10 +376,55 @@ async function processImage(file: File) {
       ElMessage.warning('未能从识别结果中提取资产编号，请手动输入')
     }
   } catch {
-    ElMessage.error('OCR 识别失败')
+    ElMessage.error('识别失败')
   } finally {
     ocrLoading.value = false
   }
+}
+
+function loadImage(file: File): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const img = new Image()
+    const url = URL.createObjectURL(file)
+    img.onload = () => { URL.revokeObjectURL(url); resolve(img) }
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('图片加载失败')) }
+    img.src = url
+  })
+}
+
+function decodeQrFromImage(img: HTMLImageElement): string | null {
+  try {
+    const canvas = document.createElement('canvas')
+    const maxSize = 1024
+    let w = img.naturalWidth, h = img.naturalHeight
+    const scale = Math.min(1, maxSize / Math.max(w, h))
+    w = Math.round(w * scale); h = Math.round(h * scale)
+    canvas.width = w; canvas.height = h
+    const ctx = canvas.getContext('2d', { willReadFrequently: true })
+    if (!ctx) return null
+    ctx.drawImage(img, 0, 0, w, h)
+    const imageData = ctx.getImageData(0, 0, w, h)
+    // 关键修复：imageData.data 是 Uint8ClampedArray（RGBA，4字节/像素），
+    // RGBLuminanceSource 需要 Int32Array（每元素一个 RGBA 像素）才能正确解析
+    const srcData = new Int32Array(imageData.data.buffer, imageData.data.byteOffset, w * h)
+    const source = new RGBLuminanceSource(srcData, w, h)
+
+    const hints = new Map()
+    hints.set(DecodeHintType.TRY_HARDER, true)
+    hints.set(DecodeHintType.POSSIBLE_FORMATS, [BarcodeFormat.QR_CODE])
+
+    const reader = new QRCodeReader()
+    try {
+      const bitmap = new BinaryBitmap(new HybridBinarizer(source))
+      const result = reader.decode(bitmap, hints)
+      return result.getText()
+    } catch { /* fall through */ }
+    try {
+      const bitmap = new BinaryBitmap(new GlobalHistogramBinarizer(source))
+      const result = reader.decode(bitmap, hints)
+      return result.getText()
+    } catch { return null }
+  } catch { return null }
 }
 
 async function doLookupFromOcr() {
