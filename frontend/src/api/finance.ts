@@ -26,3 +26,7 @@ export function getFinanceSyncRecords(params: { pageNum: number; pageSize: numbe
 export function getFinanceSyncDetail(id: number) {
   return request.get(`/finance/sync/records/${id}`)
 }
+
+export function clearFinanceSyncRecords() {
+  return request.delete('/finance/sync/records')
+}

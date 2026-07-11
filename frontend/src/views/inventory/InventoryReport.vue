@@ -63,9 +63,14 @@
           <el-table-column prop="actualLocation" label="实际存放地" width="120" show-overflow-tooltip />
           <el-table-column prop="expectedKeeper" label="期望保管人" width="90" />
           <el-table-column prop="actualKeeper" label="实际保管人" width="90" />
-          <el-table-column label="盘点结果" width="90">
+          <el-table-column label="盘点结果" min-width="140">
             <template #default="{ row }">
-              <el-tag v-if="row.result === 'NORMAL'" type="success" size="small">正常</el-tag>
+              <template v-if="row.results && row.results.length > 0">
+                <el-tag v-for="r in row.results" :key="r.id" :type="resultTagType(r.resultType)" size="small" style="margin-right: 4px; margin-bottom: 2px;">
+                  {{ resultLabel(r.resultType) }}
+                </el-tag>
+              </template>
+              <el-tag v-else-if="row.result === 'NORMAL'" type="success" size="small">正常</el-tag>
               <el-tag v-else-if="row.result === 'LOCATION_MISMATCH'" type="warning" size="small">地点不符</el-tag>
               <el-tag v-else-if="row.result === 'KEEPER_MISMATCH'" type="warning" size="small">保管人不符</el-tag>
               <el-tag v-else-if="row.result === 'MISMATCH'" type="danger" size="small">多项不符</el-tag>
@@ -108,6 +113,16 @@ const filteredDetails = computed(() => {
 function scopeLabel(s: string) {
   const map: Record<string, string> = { ALL: '全部', DEPARTMENT: '按部门', LOCATION: '按存放地点' }
   return map[s] || s
+}
+
+function resultLabel(type: string) {
+  const map: Record<string, string> = { NORMAL: '正常', LOCATION_MISMATCH: '地点不符', KEEPER_MISMATCH: '保管人不符', MISSING: '缺失', PENDING: '待盘点' }
+  return map[type] || type
+}
+
+function resultTagType(type: string) {
+  const map: Record<string, string> = { NORMAL: 'success', LOCATION_MISMATCH: 'warning', KEEPER_MISMATCH: 'warning', MISSING: 'danger', PENDING: 'info' }
+  return map[type] || 'info'
 }
 
 function goBack() {

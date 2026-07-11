@@ -37,14 +37,14 @@ public interface AssetMapper extends BaseMapper<Asset> {
                 COALESCE(SUM(CASE WHEN status = 'REPAIRING' THEN 1 ELSE 0 END), 0) AS repairingCount,
                 COALESCE(SUM(CASE WHEN status = 'WAITING_SCRAP' THEN 1 ELSE 0 END), 0) AS waitingScrapCount
             FROM asset
-            WHERE deleted = 0
+            WHERE deleted = 0 AND status NOT IN ('SCRAPPED')
             """)
     DashboardStatsVO selectDashboardStats();
 
     @Select("""
             SELECT c.category_name AS name, COUNT(a.id) AS value
             FROM asset_category c
-            LEFT JOIN asset a ON a.category_id = c.id AND a.deleted = 0
+            LEFT JOIN asset a ON a.category_id = c.id AND a.deleted = 0 AND a.status NOT IN ('SCRAPPED')
             GROUP BY c.id, c.category_name
             ORDER BY value DESC, c.id ASC
             """)
@@ -53,7 +53,7 @@ public interface AssetMapper extends BaseMapper<Asset> {
     @Select("""
             SELECT department, COALESCE(SUM(original_value), 0) AS amount
             FROM asset
-            WHERE deleted = 0
+            WHERE deleted = 0 AND status NOT IN ('SCRAPPED')
             GROUP BY department
             ORDER BY amount DESC, department ASC
             """)

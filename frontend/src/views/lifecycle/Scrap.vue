@@ -8,7 +8,9 @@
         <el-form-item label="单据状态">
           <el-select v-model="query.status" placeholder="选择状态" clearable style="width:140px">
             <el-option label="草稿" value="DRAFT" />
+            <el-option label="审批中" value="APPROVING" />
             <el-option label="已完成" value="COMPLETED" />
+            <el-option label="已驳回" value="REJECTED" />
             <el-option label="已取消" value="CANCELLED" />
           </el-select>
         </el-form-item>
@@ -30,13 +32,16 @@
         <el-table-column prop="disposalMethod" label="处置方式" width="100" />
         <el-table-column prop="status" label="状态" width="80">
           <template #default="{ row }">
-            <el-tag :type="row.status === 'COMPLETED' ? 'success' : row.status === 'CANCELLED' ? 'danger' : 'info'" size="small">{{ row.status === 'DRAFT' ? '草稿' : row.status === 'COMPLETED' ? '已完成' : '已取消' }}</el-tag>
+            <el-tag :type="row.status === 'COMPLETED' ? 'success' : row.status === 'CANCELLED' ? 'danger' : row.status === 'REJECTED' ? 'danger' : row.status === 'APPROVING' ? 'warning' : 'info'" size="small">{{ row.status === 'DRAFT' ? '草稿' : row.status === 'APPROVING' ? '审批中' : row.status === 'COMPLETED' ? '已完成' : row.status === 'REJECTED' ? '已驳回' : '已取消' }}</el-tag>
           </template>
         </el-table-column>
         <el-table-column prop="createdAt" label="创建时间" width="160" />
-        <el-table-column label="操作" width="80" fixed="right">
+        <el-table-column label="操作" width="140" fixed="right">
           <template #default="{ row }">
             <el-button link type="primary" size="small" @click="viewDetail(row)">查看</el-button>
+            <el-button v-if="row.status === 'DRAFT' || row.status === 'REJECTED'" link type="success" size="small" @click="openEdit(row)">编辑</el-button>
+            <el-button v-if="row.status === 'DRAFT' || row.status === 'REJECTED'" link type="warning" size="small" @click="submitForApproval(row)">提交审批</el-button>
+            <el-popconfirm v-if="row.status === 'DRAFT' || row.status === 'REJECTED'" title="确定删除该报废申请吗？" @confirm="handleDelete(row)"><template #reference><el-button link type="danger" size="small">删除</el-button></template></el-popconfirm>
           </template>
         </el-table-column>
       </el-table>
@@ -51,7 +56,7 @@
       />
     </div>
 
-    <el-dialog v-model="createVisible" title="新增报废" width="560px" :close-on-click-modal="false">
+    <el-dialog v-model="createVisible" :title="editId ? '编辑报废' : '新增报废'" width="560px" :close-on-click-modal="false">
       <el-form ref="formRef" :model="form" :rules="formRules" label-width="90" size="default">
         <el-form-item label="选择资产" prop="assetId">
           <AssetSelect v-model="form.assetId" />
@@ -103,7 +108,8 @@ import { ElMessage } from 'element-plus'
 import PageHeader from '@/components/PageHeader.vue'
 import AssetSelect from '@/components/AssetSelect.vue'
 import LifecycleDetailDialog from '@/components/LifecycleDetailDialog.vue'
-import { getScrapPage, getScrapDetail, createScrap } from '@/api/lifecycle'
+import { getScrapPage, getScrapDetail, createScrap, updateScrap, deleteScrap } from '@/api/lifecycle'
+import { submitApproval } from '@/api/approval'
 
 const loading = ref(false)
 const submitLoading = ref(false)
@@ -113,6 +119,7 @@ const pageNum = ref(1)
 const pageSize = ref(10)
 const formRef = ref()
 const createVisible = ref(false)
+const editId = ref<number | null>(null)
 const detailVisible = ref(false)
 const detailData = ref<any>(null)
 
@@ -159,8 +166,28 @@ function resetQuery() {
 }
 
 function openCreate() {
+  editId.value = null
   Object.assign(form, { assetId: undefined, scrapReason: '', scrapDate: '', disposalMethod: '', residualValue: undefined, remark: '' })
   createVisible.value = true
+}
+
+async function openEdit(row: any) {
+  try {
+    const r = await getScrapDetail(row.id)
+    if (r.code === 200) {
+      editId.value = row.id
+      const d = r.data
+      Object.assign(form, {
+        assetId: d.assetId,
+        scrapReason: d.scrapReason,
+        scrapDate: d.scrapDate,
+        disposalMethod: d.disposalMethod || '',
+        residualValue: d.residualValue,
+        remark: d.remark || ''
+      })
+      createVisible.value = true
+    }
+  } catch {}
 }
 
 async function submitCreate() {
@@ -168,13 +195,35 @@ async function submitCreate() {
   if (!valid) return
   submitLoading.value = true
   try {
-    await createScrap(form)
-    ElMessage.success('新增成功')
+    if (editId.value) {
+      await updateScrap(editId.value, form)
+      ElMessage.success('报废申请已更新')
+    } else {
+      await createScrap(form)
+      ElMessage.success('报废申请已保存为草稿')
+    }
     createVisible.value = false
+    editId.value = null
     fetchData()
   } catch {} finally {
     submitLoading.value = false
   }
+}
+
+async function submitForApproval(row: any) {
+  try {
+    await submitApproval({ businessType: 'SCRAP', businessId: row.id })
+    ElMessage.success('已提交审批')
+    fetchData()
+  } catch {}
+}
+
+async function handleDelete(row: any) {
+  try {
+    await deleteScrap(row.id)
+    ElMessage.success('已删除')
+    fetchData()
+  } catch {}
 }
 
 async function viewDetail(row: any) {

@@ -1,5 +1,5 @@
 <template>
-  <div class="data-card" :class="[`variant-${variant}`, { 'has-accent': accent }]">
+  <div class="data-card" :class="[`variant-${variant}`, { 'has-accent': accent, 'is-clickable': clickable }]" @click="handleClick">
     <div v-if="accent" class="card-accent-bar" :style="{ background: accentColor }"></div>
     <div class="card-main">
       <div class="card-header">
@@ -30,7 +30,16 @@ const props = defineProps<{
   iconColor?: string
   accent?: boolean
   variant?: 'default' | 'primary' | 'success' | 'warning' | 'danger' | 'info'
+  clickable?: boolean
 }>()
+
+const emit = defineEmits<{
+  click: []
+}>()
+
+function handleClick() {
+  if (props.clickable) emit('click')
+}
 
 const displayValue = computed(() => props.value ?? '-')
 
@@ -60,6 +69,13 @@ const accentColor = computed(() => props.color || variantColorMap[props.variant 
 }
 .data-card:hover {
   box-shadow: var(--shadow-md);
+}
+.data-card.is-clickable {
+  cursor: pointer;
+  user-select: none;
+}
+.data-card.is-clickable:active {
+  transform: scale(0.98);
 }
 .data-card.has-accent {
   padding-left: 24px;

@@ -11,7 +11,8 @@
           <el-descriptions-item label="已完成">{{ task.scannedCount }}/{{ task.totalCount }}</el-descriptions-item>
         </el-descriptions>
         <div style="margin-top:12px;display:flex;gap:12px;">
-          <el-button type="primary" @click="handleBatchScan" :disabled="task.scannedCount === task.totalCount">一键扫描全部</el-button>
+          <el-button type="primary" @click="openScanDialog"><el-icon style="margin-right:4px;"><Camera /></el-icon>扫码盘点</el-button>
+          <el-button type="primary" :plain="true" @click="handleBatchScan" :disabled="task.scannedCount === task.totalCount">一键扫描全部</el-button>
           <el-button type="success" @click="handleComplete" :disabled="task.scannedCount === 0">完成盘点</el-button>
           <el-button @click="goBack">返回列表</el-button>
         </div>
@@ -33,7 +34,7 @@
             </el-select>
           </div>
         </div>
-        <el-table :data="filteredRecords" border stripe size="small" style="width:100%">
+        <el-table ref="tableRef" :data="filteredRecords" border stripe size="small" style="width:100%" :row-class-name="rowClassName">
           <el-table-column prop="assetCode" label="资产编号" width="130" />
           <el-table-column prop="assetName" label="资产名称" min-width="110" />
           <el-table-column prop="expectedLocation" label="期望存放地" width="120" show-overflow-tooltip />
@@ -50,9 +51,14 @@
               <span v-else>{{ row.actualKeeper || row.expectedKeeper }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="盘点结果" width="90">
+          <el-table-column label="盘点结果" min-width="140">
             <template #default="{ row }">
-              <el-tag v-if="row.result === 'PENDING'" type="info" size="small">待盘点</el-tag>
+              <template v-if="row.results && row.results.length > 0">
+                <el-tag v-for="r in row.results" :key="r.id" :type="resultTagType(r.resultType)" size="small" style="margin-right: 4px; margin-bottom: 2px;">
+                  {{ resultLabel(r.resultType) }}
+                </el-tag>
+              </template>
+              <el-tag v-else-if="row.result === 'PENDING'" type="info" size="small">待盘点</el-tag>
               <el-tag v-else-if="row.result === 'NORMAL'" type="success" size="small">正常</el-tag>
               <el-tag v-else-if="row.result === 'LOCATION_MISMATCH'" type="warning" size="small">地点不符</el-tag>
               <el-tag v-else-if="row.result === 'KEEPER_MISMATCH'" type="warning" size="small">保管人不符</el-tag>
@@ -69,14 +75,25 @@
         </el-table>
       </div>
     </div>
+
+    <ScanDialog
+      v-model:visible="scanVisible"
+      :task-id="taskId"
+      :current-task="task"
+      :existing-results="scannedAssetCodes"
+      @scanned="onScanned"
+      @locate="onLocate"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
+import { Camera } from '@element-plus/icons-vue'
 import PageHeader from '@/components/PageHeader.vue'
+import ScanDialog from './ScanDialog.vue'
 import { getInventoryTaskDetail, getInventoryRecords, scanInventoryRecord, completeInventoryTask, batchScanPending } from '@/api/inventory'
 
 const route = useRoute()
@@ -87,6 +104,10 @@ const task = ref<any>(null)
 const allRecords = ref<any[]>([])
 const filterResult = ref('')
 const searchKeyword = ref('')
+const tableRef = ref()
+const scanVisible = ref(false)
+const highlightRowId = ref<number | null>(null)
+const scannedAssetCodes = ref<Set<string>>(new Set())
 
 const filteredRecords = computed(() => {
   let list = allRecords.value
@@ -95,7 +116,7 @@ const filteredRecords = computed(() => {
   }
   if (searchKeyword.value) {
     const kw = searchKeyword.value.toLowerCase()
-    list = list.filter((r: any) => 
+    list = list.filter((r: any) =>
       (r.assetCode && r.assetCode.toLowerCase().includes(kw)) ||
       (r.assetName && r.assetName.toLowerCase().includes(kw))
     )
@@ -108,8 +129,29 @@ function scopeLabel(s: string) {
   return map[s] || s
 }
 
+function resultLabel(type: string) {
+  const map: Record<string, string> = { NORMAL: '正常', LOCATION_MISMATCH: '地点不符', KEEPER_MISMATCH: '保管人不符', MISSING: '缺失', PENDING: '待盘点' }
+  return map[type] || type
+}
+
+function resultTagType(type: string) {
+  const map: Record<string, string> = { NORMAL: 'success', LOCATION_MISMATCH: 'warning', KEEPER_MISMATCH: 'warning', MISSING: 'danger', PENDING: 'info' }
+  return map[type] || 'info'
+}
+
+function rowClassName({ row }: { row: any }) {
+  if (highlightRowId.value === row.id) {
+    return 'highlight-row'
+  }
+  return ''
+}
+
 function goBack() {
   router.push('/inventory/tasks')
+}
+
+function openScanDialog() {
+  scanVisible.value = true
 }
 
 async function loadData() {
@@ -120,7 +162,16 @@ async function loadData() {
       getInventoryRecords(taskId.value)
     ])
     if (taskRes.code === 200) task.value = taskRes.data
-    if (recordsRes.code === 200) allRecords.value = recordsRes.data
+    if (recordsRes.code === 200) {
+      allRecords.value = recordsRes.data
+      const scanned = new Set<string>()
+      for (const r of recordsRes.data) {
+        if (r.assetCode && r.result && r.result !== 'PENDING') {
+          scanned.add(r.assetCode)
+        }
+      }
+      scannedAssetCodes.value = scanned
+    }
   } catch {} finally {
     loading.value = false
   }
@@ -171,11 +222,44 @@ async function handleComplete() {
   try {
     const r = await completeInventoryTask(taskId.value)
     if (r.code === 200) {
-      ElMessage.success('盘点已完成\uff01')
+      ElMessage.success('盘点已完成！')
       router.push('/inventory/tasks/' + taskId.value + '/report')
     }
   } catch {}
 }
 
+async function onScanned() {
+  await loadData()
+}
+
+async function onLocate(recordId: number) {
+  highlightRowId.value = recordId
+  await nextTick()
+
+  const tableEl = tableRef.value?.$el
+  if (tableEl) {
+    const row = tableEl.querySelector('.highlight-row')
+    if (row) {
+      row.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    }
+  }
+
+  setTimeout(() => {
+    highlightRowId.value = null
+  }, 3000)
+}
+
 onMounted(() => { loadData() })
 </script>
+
+<style scoped>
+:deep(.highlight-row) {
+  background-color: #ecf5ff !important;
+  animation: highlight-flash 0.6s ease-in-out 3;
+}
+
+@keyframes highlight-flash {
+  0%, 100% { background-color: #ecf5ff; }
+  50% { background-color: #b3d8ff; }
+}
+</style>

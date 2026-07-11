@@ -10,6 +10,7 @@ import com.example.asset.asset.service.AssetService;
 import com.example.asset.common.PageResult;
 import com.example.asset.common.Result;
 import jakarta.validation.Valid;
+import org.springframework.http.MediaType;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -70,5 +71,10 @@ public class AssetController {
     public Result<Void> delete(@PathVariable Long id) {
         assetService.delete(id);
         return Result.success();
+    }
+
+    @GetMapping(value = "/{id}/qrcode", produces = MediaType.IMAGE_PNG_VALUE)
+    public byte[] qrcode(@PathVariable Long id) {
+        return assetService.generateQrCode(id);
     }
 }

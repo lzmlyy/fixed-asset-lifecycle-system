@@ -62,15 +62,32 @@
         <el-table-column label="结束时间" width="170">
           <template #default="{ row }">{{ row.endTime || '-' }}</template>
         </el-table-column>
-        <el-table-column label="操作" width="220" fixed="right">
+        <el-table-column label="操作" width="360" fixed="right">
           <template #default="{ row }">
-            <el-button size="small" @click="openRecordsDialog(row)">查看明细</el-button>
+            <el-button size="small" @click="openRecordsDialog(row)">明细</el-button>
+            <el-button
+              size="small"
+              type="primary"
+              v-if="row.status === 'IN_PROGRESS'"
+              @click="openQuickScan(row)"
+            >快速盘点</el-button>
             <el-button
               size="small"
               type="success"
               v-if="row.status === 'IN_PROGRESS'"
               @click="handleComplete(row)"
-            >完成任务</el-button>
+            >完成</el-button>
+            <el-button
+              size="small"
+              type="warning"
+              v-if="row.status === 'COMPLETED'"
+              @click="handleRestart(row)"
+            >重盘</el-button>
+            <el-popconfirm title="确定删除该盘点任务？将同时删除所有盘点明细。" @confirm="handleDelete(row)">
+              <template #reference>
+                <el-button size="small" type="danger">删除</el-button>
+              </template>
+            </el-popconfirm>
           </template>
         </el-table-column>
         <template #empty>
@@ -235,11 +252,82 @@
         <el-button type="primary" :loading="updating" @click="handleUpdateRecord">保存</el-button>
       </template>
     </el-dialog>
+    <!-- 快速盘点弹窗 -->
+    <el-dialog v-model="quickScanVisible" fullscreen :close-on-click-modal="false" @closed="stopQuickScan" class="scan-dialog">
+      <template #header>
+        <div style="display:flex;align-items:center;gap:12px;">
+          <span style="font-size:18px;font-weight:600;">快速盘点</span>
+          <el-tag v-if="quickScanTask" type="info" size="small">{{ quickScanTask.taskName }}</el-tag>
+          <el-tag type="warning" size="small" style="margin-left:8px">{{ quickScanProgress }}</el-tag>
+        </div>
+      </template>
+      <div class="qs-body">
+        <div class="qs-left">
+          <el-tabs v-model="scanMode" class="qs-tabs">
+            <el-tab-pane label="二维码扫码" name="qr">
+              <div class="qs-qr-wrap">
+                <div id="task-qr-reader" class="qs-qr"></div>
+                <div v-if="qrErr" class="qs-err"><el-alert type="warning" :closable="false" show-icon><template #title>{{ qrErr }}</template></el-alert><el-button type="primary" style="margin-top:12px" @click="startQr">重试</el-button></div>
+                <div v-if="!qrOk && !qrErr" class="qs-load"><el-icon class="is-loading" :size="28"><Loading /></el-icon><p>启动摄像头...</p></div>
+              </div>
+            </el-tab-pane>
+            <el-tab-pane label="拍照 OCR" name="ocr">
+              <div class="qs-ocr">
+                <div v-if="!ocrImg" class="qs-ocr-empty">
+                  <el-button type="primary" size="large" @click="takePhoto"><el-icon :size="18"><Camera /></el-icon>拍照</el-button>
+                  <el-button size="large" style="margin-left:12px" @click="pickFile">上传</el-button>
+                  <input ref="camInp" type="file" accept="image/*" capture="environment" style="display:none" @change="onCam" />
+                  <input ref="fileInp" type="file" accept="image/*" style="display:none" @change="onFile" />
+                </div>
+                <div v-else class="qs-ocr-has">
+                  <img :src="ocrImg" class="qs-ocr-img" />
+                  <el-button size="small" style="margin-top:8px" @click="ocrImg=null;ocrTxt='';ocrCode=''">重拍</el-button>
+                  <div v-if="ocrBusy" class="qs-ocr-wait"><el-icon class="is-loading"><Loading /></el-icon> 识别中...</div>
+                  <div v-else class="qs-ocr-res">
+                    <el-input v-model="ocrTxt" type="textarea" :rows="3" placeholder="识别结果..." />
+                    <div style="display:flex;margin-top:8px;align-items:center">
+                      <el-input v-model="ocrCode" placeholder="资产编号" style="flex:1"><template #prepend>编号</template></el-input>
+                      <el-button type="primary" :disabled="!ocrCode" @click="lookupByOcr" style="margin-left:8px">查找</el-button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </el-tab-pane>
+            <el-tab-pane label="手动输入" name="man">
+              <div class="qs-man"><el-input v-model="manCode" placeholder="资产编号" size="large" clearable @keyup.enter="lookupMan"><template #prepend>资产编号</template></el-input><el-button type="primary" size="large" :disabled="!manCode" @click="lookupMan" style="margin-left:12px">查找</el-button></div>
+            </el-tab-pane>
+          </el-tabs>
+        </div>
+        <div class="qs-right">
+          <div class="qs-card" v-if="lookupAsset">
+            <div class="qs-card-hd">
+              <span class="qs-card-tt">资产信息</span>
+              <el-tag v-if="lookupAsset._statusTag" :type="lookupAsset._statusTagType" size="small">{{ lookupAsset._statusTag }}</el-tag>
+            </div>
+            <el-descriptions :column="1" size="small" border style="margin-top:8px">
+              <el-descriptions-item label="资产编号">{{ lookupAsset.assetCode }}</el-descriptions-item>
+              <el-descriptions-item label="资产名称">{{ lookupAsset.assetName }}</el-descriptions-item>
+              <el-descriptions-item label="期望地点">{{ lookupAsset.expectedLocation || '-' }}</el-descriptions-item>
+              <el-descriptions-item label="期望保管人">{{ lookupAsset.expectedKeeper || '-' }}</el-descriptions-item>
+            </el-descriptions>
+            <div style="margin-top:12px;display:flex;gap:8px">
+              <el-button type="success" size="large" :disabled="lookupAsset._scanned" :loading="scanning" @click="doScan" style="flex:1">确认盘点</el-button>
+              <el-button size="large" @click="lookupAsset=null">清除</el-button>
+            </div>
+          </div>
+          <el-empty v-else description="扫描或输入资产编号" :image-size="60" />
+          <div class="qs-log" v-if="scanLog.length">
+            <div class="qs-log-hd"><span>扫描记录 ({{ scanLog.length }})</span><el-button link type="primary" size="small" @click="scanLog=[];scanned.clear()">清空</el-button></div>
+            <div class="qs-log-list"><div v-for="(s,i) in scanLog" :key="i" class="qs-log-it"><div class="qs-log-top"><span class="qs-log-code">{{ s.code }}</span><el-tag :type="s.ok?'success':'danger'" size="small">{{ s.ok?'已确认':'未找到' }}</el-tag></div><div class="qs-log-nm">{{ s.name||'-' }}</div></div></div>
+          </div>
+        </div>
+      </div>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive } from 'vue'
+import { ref, reactive, computed, nextTick, onBeforeUnmount } from 'vue'
 import { ElMessage, ElMessageBox, type FormInstance } from 'element-plus'
 import PageHeader from '@/components/PageHeader.vue'
 import {
@@ -248,12 +336,19 @@ import {
   getInventoryRecords,
   updateInventoryRecord,
   completeInventoryTask,
+  deleteInventoryTask,
+  restartInventoryTask,
+  lookupInventoryRecord,
+  scanInventoryRecord,
+  performOcr,
   type InventoryTaskItem,
   type InventoryRecordItem
 } from '@/api/inventory'
-import { Download, CircleCheck, Loading, Plus } from '@element-plus/icons-vue'
+import { Download, CircleCheck, Loading, Plus, Camera } from '@element-plus/icons-vue'
 import { exportInventoryTasks, exportInventoryTaskRecords } from '@/api/export'
 import { useMasterDataOptions } from '@/composables/useMasterDataOptions'
+import { Html5Qrcode } from 'html5-qrcode'
+import jsqr from 'jsqr'
 
 const { departmentOptions, locationOptions, keeperOptions, loadAll: loadMasterData } = useMasterDataOptions()
 
@@ -504,6 +599,210 @@ function resultTagType(result: string): string {
   return map[result] || 'info'
 }
 
+// ===== 删除任务 =====
+async function handleDelete(task: InventoryTaskItem) {
+  try {
+    await ElMessageBox.confirm(
+      `确定删除任务"${task.taskName}"吗？将同时删除所有盘点明细，不可恢复！`,
+      '确认删除',
+      { type: 'error', confirmButtonText: '删除', cancelButtonText: '取消' }
+    )
+  } catch { return }
+  try {
+    await deleteInventoryTask(task.id)
+    ElMessage.success('任务已删除')
+    await loadTasks()
+  } catch (e: any) {
+    ElMessage.error(e?.message || '删除失败')
+  }
+}
+
+// ===== 重盘任务 =====
+async function handleRestart(task: InventoryTaskItem) {
+  try {
+    await ElMessageBox.confirm(
+      `确定重新盘点"${task.taskName}"吗？所有已盘点的明细将被重置为"待盘点"状态。`,
+      '确认重盘',
+      { type: 'warning' }
+    )
+  } catch { return }
+  try {
+    await restartInventoryTask(task.id)
+    ElMessage.success('任务已重置，可以重新盘点')
+    await loadTasks()
+  } catch (e: any) {
+    ElMessage.error(e?.message || '重盘失败')
+  }
+}
+
+// ===== 快速盘点 =====
+const quickScanVisible = ref(false)
+const quickScanTask = ref<InventoryTaskItem | null>(null)
+const scanMode = ref('qr')
+const quickScanProgress = computed(() => {
+  if (!quickScanTask.value) return ''
+  return `${quickScanTask.value.completedRecords}/${quickScanTask.value.totalRecords}`
+})
+const lookupAsset = ref<any>(null)
+const scanning = ref(false)
+const scanLog = ref<{code:string;name:string;ok:boolean}[]>([])
+const scanned = ref<Set<string>>(new Set())
+
+let qrInstance: Html5Qrcode | null = null
+const qrOk = ref(false)
+const qrErr = ref('')
+const ocrImg = ref<string|null>(null)
+const ocrTxt = ref('')
+const ocrBusy = ref(false)
+const ocrCode = ref('')
+const manCode = ref('')
+const camInp = ref<HTMLInputElement|null>(null)
+const fileInp = ref<HTMLInputElement|null>(null)
+
+async function openQuickScan(task: InventoryTaskItem) {
+  quickScanTask.value = task
+  quickScanVisible.value = true
+  await nextTick()
+  startQr()
+}
+
+function stopQuickScan() {
+  stopQr()
+  lookupAsset.value = null
+  ocrImg.value = null; ocrTxt.value = ''; ocrCode.value = ''; ocrBusy.value = false
+}
+
+function startQr() {
+  stopQr(); qrErr.value = ''; qrOk.value = false
+  try {
+    qrInstance = new Html5Qrcode('task-qr-reader')
+    qrInstance.start({ facingMode: 'environment' }, { fps: 10, qrbox: { width: 220, height: 220 } },
+      async (text: string) => { if (text) { await doLookup(text.trim()) } },
+      () => {}
+    ).then(() => { qrOk.value = true }).catch(async () => {
+      try {
+        await qrInstance!.start({ facingMode: { exact: 'user' } }, { fps: 10, qrbox: { width: 220, height: 220 } },
+          async (text: string) => { if (text) { await doLookup(text.trim()) } },
+          () => {}
+        )
+        qrOk.value = true
+      } catch (e2: any) { qrErr.value = '摄像头启动失败: ' + (e2?.message||'') }
+    })
+  } catch (e: any) { qrErr.value = e?.message||'' }
+}
+
+function stopQr() {
+  if (qrInstance) { qrInstance.stop().catch(()=>{}); qrInstance = null }
+  qrOk.value = false
+}
+
+async function doLookup(code: string) {
+  if (!code || !quickScanTask.value) return
+  try {
+    const r = await lookupInventoryRecord(quickScanTask.value.id, code)
+    if (!r.data || r.data.result === 'NOT_IN_SCOPE') {
+      scanLog.value.unshift({ code, name: r.data?.assetName||'', ok: false })
+      if (scanLog.value.length > 20) scanLog.value.pop()
+      ElMessage.error('未在盘点范围内')
+      return
+    }
+    const asset = { ...r.data, _scanned: r.data.scanned }
+    if (asset._scanned) {
+      const map: Record<string,string> = { NORMAL: '已盘点 - 正常', LOCATION_MISMATCH: '已盘点 - 地点不符', KEEPER_MISMATCH: '已盘点 - 保管人不符', MISMATCH: '已盘点 - 多项不符' }
+      const tagTypes: Record<string,string> = { NORMAL: 'success', LOCATION_MISMATCH: 'warning', KEEPER_MISMATCH: 'warning', MISMATCH: 'danger' }
+      asset._statusTag = map[r.data.result] || '已盘点'
+      asset._statusTagType = tagTypes[r.data.result] || 'info'
+    } else {
+      asset._statusTag = '待盘点'
+      asset._statusTagType = 'info'
+    }
+    lookupAsset.value = asset
+  } catch {
+    scanLog.value.unshift({ code, name: '', ok: false }); if (scanLog.value.length > 20) scanLog.value.pop()
+  }
+}
+
+async function doScan() {
+  if (!lookupAsset.value || !quickScanTask.value) return
+  const code = lookupAsset.value.assetCode
+  if (scanned.value.has(code)) { ElMessage.warning('已扫描过'); return }
+  scanning.value = true
+  try {
+    await scanInventoryRecord({ recordId: lookupAsset.value.recordId, actualLocation: '', actualKeeper: '', result: 'NORMAL' })
+    scanned.value.add(code)
+    scanLog.value.unshift({ code, name: lookupAsset.value.assetName, ok: true })
+    if (scanLog.value.length > 20) scanLog.value.pop()
+    ElMessage.success('已确认: ' + code)
+    if (quickScanTask.value) {
+      quickScanTask.value.completedRecords = (quickScanTask.value.completedRecords||0) + 1
+    }
+    lookupAsset.value = null
+    loadTasks()
+  } catch {} finally { scanning.value = false }
+}
+
+function takePhoto() { camInp.value?.click() }
+function pickFile() { fileInp.value?.click() }
+
+async function onCam(e: Event) { const f = (e.target as HTMLInputElement).files?.[0]; if (f) await procImg(f) }
+async function onFile(e: Event) { const f = (e.target as HTMLInputElement).files?.[0]; if (f) await procImg(f) }
+
+async function procImg(file: File) {
+  ocrImg.value = URL.createObjectURL(file); ocrBusy.value = true; ocrTxt.value = ''
+
+  try {
+    const img = await loadImage(file)
+
+    const qrResult = decodeQrFromImage(img)
+    if (qrResult) {
+      ocrTxt.value = '[二维码识别] ' + qrResult
+      const m = qrResult.match(/(?:FA|ZC)[A-Z0-9\-]+/i)
+      ocrCode.value = m ? m[0].toUpperCase() : qrResult
+      ocrBusy.value = false
+      ElMessage.success('图片中识别到二维码: ' + qrResult)
+      return
+    }
+
+    const fd = new FormData(); fd.append('image', file)
+    const r = await performOcr(fd); ocrTxt.value = r.data?.text||''
+    const m = ocrTxt.value.match(/(?:FA|ZC)[A-Z0-9\-]+/i)
+    ocrCode.value = m ? m[0].toUpperCase() : ''
+    if (!ocrCode.value) ElMessage.warning('未提取到资产编号，请手动输入')
+  } catch { ElMessage.error('识别失败') }
+  finally { ocrBusy.value = false }
+}
+
+function loadImage(file: File): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const img = new Image()
+    img.onload = () => resolve(img)
+    img.onerror = reject
+    img.src = URL.createObjectURL(file)
+  })
+}
+
+function decodeQrFromImage(img: HTMLImageElement): string | null {
+  try {
+    const canvas = document.createElement('canvas')
+    const maxSize = 800
+    let w = img.naturalWidth, h = img.naturalHeight
+    const scale = Math.min(1, maxSize / Math.max(w, h))
+    w *= scale; h *= scale
+    canvas.width = w; canvas.height = h
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return null
+    ctx.drawImage(img, 0, 0, w, h)
+    const imageData = ctx.getImageData(0, 0, w, h)
+    const result = jsqr(imageData.data, w, h)
+    return result ? result.data : null
+  } catch { return null }
+}
+
+function lookupByOcr() { if (ocrCode.value) doLookup(ocrCode.value.trim()) }
+function lookupMan() { if (manCode.value) { doLookup(manCode.value.trim()); manCode.value = '' } }
+
+onBeforeUnmount(() => { stopQr() })
+
 // 初始化加载
 loadTasks()
 loadMasterData()
@@ -549,4 +848,34 @@ loadMasterData()
   color: var(--color-text-secondary);
   text-align: right;
 }
+
+/* 快速盘点弹窗 */
+.scan-dialog :deep(.el-dialog__body) { padding: 8px 16px; height: calc(100vh - 120px); overflow: hidden; }
+.qs-body { display: flex; height: 100%; gap: 16px; }
+.qs-left { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.qs-tabs { flex: 1; display: flex; flex-direction: column; }
+.qs-tabs :deep(.el-tabs__content) { flex: 1; overflow: hidden; }
+.qs-tabs :deep(.el-tab-pane) { height: 100%; }
+.qs-qr-wrap { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #000; border-radius: 8px; overflow: hidden; min-height: 350px; }
+.qs-qr { width: 100%; max-width: 450px; }
+.qs-qr :deep(video) { width: 100% !important; max-height: 55vh !important; }
+.qs-err, .qs-load { text-align: center; padding: 40px; color: #999; }
+.qs-ocr { flex: 1; padding: 20px; display: flex; flex-direction: column; align-items: center; }
+.qs-ocr-empty { margin-top: 60px; }
+.qs-ocr-has { display: flex; flex-direction: column; align-items: center; }
+.qs-ocr-img { max-width: 100%; max-height: 280px; border-radius: 6px; }
+.qs-ocr-wait { color: #999; margin: 12px 0; }
+.qs-ocr-res { width: 100%; max-width: 400px; margin-top: 8px; }
+.qs-man { display: flex; align-items: center; justify-content: center; padding: 60px 20px; }
+.qs-right { width: 310px; display: flex; flex-direction: column; gap: 12px; overflow-y: auto; }
+.qs-card { background: #fff; border: 1px solid var(--color-border); border-radius: 6px; padding: 14px; }
+.qs-card-hd { display: flex; align-items: center; justify-content: space-between; }
+.qs-card-tt { font-size: 15px; font-weight: 600; }
+.qs-log { background: #fff; border: 1px solid var(--color-border); border-radius: 6px; padding: 10px; }
+.qs-log-hd { display: flex; align-items: center; justify-content: space-between; font-size: 13px; font-weight: 500; margin-bottom: 6px; }
+.qs-log-list { display: flex; flex-direction: column; gap: 4px; }
+.qs-log-it { padding: 6px 8px; border-radius: 4px; border: 1px solid var(--color-border); }
+.qs-log-top { display: flex; justify-content: space-between; align-items: center; }
+.qs-log-code { font-size: 12px; font-weight: 600; font-family: monospace; }
+.qs-log-nm { font-size: 11px; color: #999; margin-top: 2px; }
 </style>

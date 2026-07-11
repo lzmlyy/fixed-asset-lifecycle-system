@@ -3,6 +3,7 @@ package com.example.asset.inventory.vo;
 import lombok.Data;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Data
 public class InventoryRecordVO {
@@ -20,4 +21,5 @@ public class InventoryRecordVO {
     private String result;
     private LocalDateTime scannedAt;
     private String remark;
+    private List<InventoryResultVO> results;
 }

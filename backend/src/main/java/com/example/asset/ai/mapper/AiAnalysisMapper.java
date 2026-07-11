@@ -10,19 +10,19 @@ import java.util.Map;
 @Mapper
 public interface AiAnalysisMapper {
 
-    @Select("SELECT COUNT(*) FROM asset WHERE deleted = 0")
+    @Select("SELECT COUNT(*) FROM asset WHERE deleted = 0 AND status NOT IN ('SCRAPPED')")
     Long selectTotalAssetCount();
 
-    @Select("SELECT COALESCE(SUM(original_value), 0) FROM asset WHERE deleted = 0")
+    @Select("SELECT COALESCE(SUM(original_value), 0) FROM asset WHERE deleted = 0 AND status NOT IN ('SCRAPPED')")
     BigDecimal selectTotalOriginalValue();
 
-    @Select("SELECT COALESCE(SUM(net_value), 0) FROM asset WHERE deleted = 0")
+    @Select("SELECT COALESCE(SUM(net_value), 0) FROM asset WHERE deleted = 0 AND status NOT IN ('SCRAPPED')")
     BigDecimal selectTotalNetValue();
 
-    @Select("SELECT COALESCE(SUM(accumulated_depreciation), 0) FROM asset WHERE deleted = 0")
+    @Select("SELECT COALESCE(SUM(accumulated_depreciation), 0) FROM asset WHERE deleted = 0 AND status NOT IN ('SCRAPPED')")
     BigDecimal selectTotalAccumulatedDepreciation();
 
-    @Select("SELECT status, COUNT(*) AS cnt, COALESCE(SUM(net_value), 0) AS net_value FROM asset WHERE deleted = 0 GROUP BY status ORDER BY cnt DESC")
+    @Select("SELECT status, COUNT(*) AS cnt, COALESCE(SUM(net_value), 0) AS net_value FROM asset WHERE deleted = 0 AND status NOT IN ('SCRAPPED') GROUP BY status ORDER BY cnt DESC")
     List<Map<String, Object>> selectStatusDistribution();
 
     @Select("SELECT id, asset_code, asset_name, department, keeper FROM asset WHERE deleted = 0 AND status = 'IDLE' AND updated_at < DATE_SUB(NOW(), INTERVAL 1 YEAR) ORDER BY updated_at ASC LIMIT 20")

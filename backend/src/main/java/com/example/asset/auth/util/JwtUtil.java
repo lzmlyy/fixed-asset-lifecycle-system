@@ -39,6 +39,7 @@ public class JwtUtil {
         return Jwts.builder()
                 .subject(String.valueOf(loginUser.getUserId()))
                 .claim("username", loginUser.getUsername())
+                .claim("realName", loginUser.getRealName())
                 .claim("roles", loginUser.getRoles())
                 .issuedAt(Date.from(now))
                 .expiration(Date.from(now.plusSeconds(expirationMinutes * 60)))
@@ -63,6 +64,7 @@ public class JwtUtil {
             return LoginUser.builder()
                     .userId(Long.valueOf(claims.getSubject()))
                     .username(claims.get("username", String.class))
+                    .realName(claims.get("realName", String.class))
                     .roles(roles)
                     .build();
         } catch (JwtException | IllegalArgumentException ex) {

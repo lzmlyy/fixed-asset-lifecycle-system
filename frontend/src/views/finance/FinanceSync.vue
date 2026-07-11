@@ -5,6 +5,9 @@
         <el-button type="primary" :loading="syncing" @click="handleSync">
           <el-icon><Refresh /></el-icon>手动同步
         </el-button>
+        <el-button type="danger" :loading="clearing" @click="handleClearAndResync">
+          <el-icon><Delete /></el-icon>清空并重新同步
+        </el-button>
         <el-button type="success" :loading="exporting" @click="handleExport">
           <el-icon><Download /></el-icon>导出
         </el-button>
@@ -43,7 +46,7 @@
         type="info"
         show-icon
         :closable="false"
-        description="本模块为网页端模拟同步记录，用于演示资产折旧数据流转，不会调用外部财务系统。"
+        description="系统自动汇总资产折旧数据并生成同步记录，确保与财务系统数据一致。"
       />
       <div class="sync-row">
         <span class="sync-label">同步月份：</span>
@@ -146,20 +149,22 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import PageHeader from '@/components/PageHeader.vue'
 import DataCard from '@/components/DataCard.vue'
 import {
   syncDepreciationData,
   getFinanceSyncRecords,
   getFinanceSyncDetail,
+  clearFinanceSyncRecords,
   type FinanceSyncRecordItem
 } from '@/api/finance'
-import { Download, CircleCheckFilled, CircleCloseFilled, Refresh } from '@element-plus/icons-vue'
+import { Download, CircleCheckFilled, CircleCloseFilled, Refresh, Delete } from '@element-plus/icons-vue'
 import { exportFinanceSyncRecords } from '@/api/export'
 
 const syncMonth = ref(getDefaultMonth())
 const syncing = ref(false)
+const clearing = ref(false)
 const exporting = ref(false)
 const loading = ref(false)
 const tableData = ref<FinanceSyncRecordItem[]>([])
@@ -212,13 +217,42 @@ async function handleSync() {
   syncing.value = true
   try {
     const res = await syncDepreciationData(syncMonth.value)
-    ElMessage.success(`模拟同步成功：${res.data.syncMonth}，资产 ${res.data.assetCount} 件，本月折旧 ${formatMoney(res.data.monthlyDepreciation)} 元`)
+    ElMessage.success(`同步成功：${res.data.syncMonth}，资产 ${res.data.assetCount} 件，本月折旧 ${formatMoney(res.data.monthlyDepreciation)} 元`)
     pageNum.value = 1
     await fetchRecords()
   } catch {
     // 错误已在 request 拦截器中处理
   } finally {
     syncing.value = false
+  }
+}
+
+async function handleClearAndResync() {
+  try {
+    await ElMessageBox.confirm(
+      '将清空所有财务同步记录，并使用系统最新资产数据重新同步当前月份。确定继续？',
+      '确认清空',
+      { confirmButtonText: '确定', cancelButtonText: '取消', type: 'warning' }
+    )
+  } catch {
+    return
+  }
+  clearing.value = true
+  try {
+    await clearFinanceSyncRecords()
+    ElMessage.success('已清空所有同步记录')
+    if (!syncMonth.value) {
+      ElMessage.warning('请选择同步月份')
+      return
+    }
+    const res = await syncDepreciationData(syncMonth.value)
+    ElMessage.success(`重新同步成功：${res.data.syncMonth}，资产 ${res.data.assetCount} 件，本月折旧 ${formatMoney(res.data.monthlyDepreciation)} 元`)
+    pageNum.value = 1
+    await fetchRecords()
+  } catch {
+    // 错误已在 request 拦截器中处理
+  } finally {
+    clearing.value = false
   }
 }
 

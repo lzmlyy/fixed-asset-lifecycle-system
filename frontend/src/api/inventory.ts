@@ -132,6 +132,12 @@ export function deleteInventoryTask(taskId: number) {
   )
 }
 
+export function restartInventoryTask(taskId: number) {
+  return request.post<any, { code: number; message: string; data: null }>(
+    `/inventory/tasks/${taskId}/restart`
+  )
+}
+
 export function getDepartments() {
   return request.get<any, { code: number; message: string; data: string[] }>(
     '/inventory/departments'
@@ -141,5 +147,35 @@ export function getDepartments() {
 export function getLocations() {
   return request.get<any, { code: number; message: string; data: string[] }>(
     '/inventory/locations'
+  )
+}
+
+export function lookupInventoryRecord(taskId: number, assetCode: string) {
+  return request.get<any, { code: number; message: string; data: any }>(
+    '/inventory/records/lookup', { params: { taskId, assetCode } }
+  )
+}
+
+export function performOcr(formData: FormData) {
+  return request.post<any, { code: number; message: string; data: { text: string } }>(
+    '/inventory/ocr', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    }
+  )
+}
+
+export function getAssetQrCode(assetId: number) {
+  return request.get(`/assets/${assetId}/qrcode`, { responseType: 'blob' })
+}
+
+export function quickLookup(assetCode: string) {
+  return request.get<any, { code: number; message: string; data: any }>(
+    '/inventory/quick-lookup', { params: { assetCode } }
+  )
+}
+
+export function quickScan(assetCode: string, actualLocation?: string, actualKeeper?: string, remark?: string) {
+  return request.post<any, { code: number; message: string; data: null }>(
+    '/inventory/quick-scan', null, { params: { assetCode, actualLocation, actualKeeper, remark } }
   )
 }

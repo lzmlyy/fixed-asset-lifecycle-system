@@ -16,6 +16,7 @@ public class LoginUser {
 
     private Long userId;
     private String username;
+    private String realName;
     @Builder.Default
     private List<String> roles = new ArrayList<>();
 }

@@ -86,13 +86,14 @@
         <el-table-column label="操作" width="120" fixed="right">
           <template #default="{ row }">
             <el-button link type="primary" size="small" @click="goDetail(row.id)">查看</el-button>
-            <el-dropdown trigger="click" @command="(cmd: string) => { if (cmd === 'edit') openEdit(row); else if (cmd === 'delete') handleDelete(row) }">
+            <el-dropdown trigger="click" @command="(cmd: string) => handleRowCmd(cmd, row)">
               <el-button link type="primary" size="small">
                 更多<el-icon class="el-icon--right"><ArrowDown /></el-icon>
               </el-button>
               <template #dropdown>
                 <el-dropdown-menu>
                   <el-dropdown-item command="edit">编辑</el-dropdown-item>
+                  <el-dropdown-item command="qr">生成二维码</el-dropdown-item>
                   <el-dropdown-item command="delete" divided>删除</el-dropdown-item>
                 </el-dropdown-menu>
               </template>
@@ -208,16 +209,30 @@
         <el-button type="primary" :loading="submitLoading" @click="submitForm">确认</el-button>
       </template>
     </el-dialog>
+
+    <!-- 二维码弹窗 -->
+    <el-dialog v-model="qrVisible" title="资产二维码" width="420px" @closed="qrImage=null;qrAsset=null">
+      <div v-if="qrAsset" style="text-align:center">
+        <img v-if="qrImage" :src="qrImage" style="width:280px;height:280px" />
+        <div style="margin-top:8px;font-size:15px;font-weight:600">{{ qrAsset.assetCode }}</div>
+        <div style="font-size:13px;color:#666;margin-top:4px">{{ qrAsset.assetName }}</div>
+        <div style="margin-top:12px;display:flex;gap:8px;justify-content:center">
+          <el-button type="primary" size="small" @click="printQr">打印标签</el-button>
+          <el-button size="small" @click="downloadQr">下载图片</el-button>
+        </div>
+      </div>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, reactive, onMounted, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import PageHeader from '@/components/PageHeader.vue'
 import StatusTag from '@/components/StatusTag.vue'
 import { getAssetPage, createAsset, updateAsset, deleteAsset, getStatusOptions, getCategoryList } from '@/api/asset'
+import request from '@/api/request'
 import { Download, ArrowDown, ArrowUp } from '@element-plus/icons-vue'
 import { exportAssets } from '@/api/export'
 import { formatMoney } from '@/utils/format'
@@ -226,6 +241,7 @@ import { useMasterDataOptions } from '@/composables/useMasterDataOptions'
 const { departmentOptions, locationOptions, keeperOptions, loadAll: loadMasterData } = useMasterDataOptions()
 
 const router = useRouter()
+const route = useRoute()
 const loading = ref(false)
 const submitLoading = ref(false)
 const exporting = ref(false)
@@ -398,7 +414,49 @@ function handleDelete(row: any) {
 
 function goDetail(id: number) { router.push(`/assets/${id}`) }
 
-onMounted(() => { fetchData(); fetchOptions(); loadMasterData() })
+const qrVisible = ref(false)
+const qrImage = ref<string | null>(null)
+const qrAsset = ref<any>(null)
+
+function handleRowCmd(cmd: string, row: any) {
+  if (cmd === 'edit') openEdit(row)
+  else if (cmd === 'delete') handleDelete(row)
+  else if (cmd === 'qr') showQr(row)
+}
+
+async function showQr(row: any) {
+  qrAsset.value = row
+  qrVisible.value = true
+  try {
+    const r = await request.get(`/assets/${row.id}/qrcode`, { responseType: 'blob' })
+    qrImage.value = URL.createObjectURL(r as any)
+  } catch { qrImage.value = null }
+}
+
+function downloadQr() {
+  if (!qrImage.value) return
+  const a = document.createElement('a')
+  a.href = qrImage.value
+  a.download = `QR_${qrAsset.value.assetCode}.png`
+  a.click()
+}
+
+function printQr() {
+  if (!qrImage.value) return
+  const w = window.open('', '_blank')
+  if (w) {
+    w.document.write(`<html><body style="text-align:center;padding:20px"><img src="${qrImage.value}" style="width:280px"/><p style="font-size:16px;font-weight:bold">${qrAsset.value.assetCode}</p><p>${qrAsset.value.assetName}</p><script>setTimeout(function(){window.print();window.close()},500);<\/script></body></html>`)
+    w.document.close()
+  }
+}
+
+onMounted(() => {
+  const statusParam = route.query.status as string
+  if (statusParam) query.status = statusParam
+  fetchData()
+  fetchOptions()
+  loadMasterData()
+})
 </script>
 
 <style scoped>

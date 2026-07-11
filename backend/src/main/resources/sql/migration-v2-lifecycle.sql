@@ -3,6 +3,7 @@
 -- Inbound / Receive / Transfer / Repair / Scrap orders
 -- ============================================================
 
+USE fixed_asset_lifecycle_system;
 SET NAMES utf8mb4;
 SET FOREIGN_KEY_CHECKS = 0;
 

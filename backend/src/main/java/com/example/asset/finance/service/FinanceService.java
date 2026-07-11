@@ -2,6 +2,7 @@ package com.example.asset.finance.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.example.asset.common.BusinessException;
 import com.example.asset.common.PageResult;
 import com.example.asset.context.UserContext;
 import com.example.asset.depreciation.mapper.DepreciationReportMapper;
@@ -40,7 +41,11 @@ public class FinanceService {
         // 检查是否已同步
         FinanceSyncRecord existing = financeSyncRecordMapper.selectByMonth(month);
         if (existing != null) {
-            return toVO(existing);
+            if (existing.getAssetCount() != null && existing.getAssetCount() > 0) {
+                throw new BusinessException("已是最新数据");
+            }
+            // 旧记录数值为0（无效数据），删除后重新同步
+            financeSyncRecordMapper.deleteById(existing.getId());
         }
 
         // 查询资产价值快照
@@ -63,8 +68,8 @@ public class FinanceService {
         record.setTotalAccumulatedDepreciation(summary != null ? summary.getTotalAccumulatedDepreciation() : BigDecimal.ZERO);
         record.setMonthlyDepreciation(monthlyDep);
         record.setStatus("SUCCESS");
-        record.setOperatorName(UserContext.getUsername() != null ? UserContext.getUsername() : "system");
-        record.setRemark("模拟同步成功，未调用外部财务系统");
+        record.setOperatorName(UserContext.getRealName() != null ? UserContext.getRealName() : "system");
+        record.setRemark("同步成功");
         record.setCreatedAt(LocalDateTime.now());
 
         financeSyncRecordMapper.insert(record);
@@ -90,6 +95,12 @@ public class FinanceService {
             return null;
         }
         return toVO(record);
+    }
+
+    @Transactional
+    public void clearAllSyncRecords() {
+        LambdaQueryWrapper<FinanceSyncRecord> wrapper = new LambdaQueryWrapper<>();
+        financeSyncRecordMapper.delete(wrapper);
     }
 
     private FinanceSyncRecordVO toVO(FinanceSyncRecord record) {

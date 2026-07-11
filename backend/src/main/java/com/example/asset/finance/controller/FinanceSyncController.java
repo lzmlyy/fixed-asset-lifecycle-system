@@ -5,6 +5,7 @@ import com.example.asset.common.Result;
 import com.example.asset.finance.service.FinanceService;
 import com.example.asset.finance.vo.FinanceSyncRecordVO;
 import com.example.asset.permission.annotation.RequirePermission;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -41,5 +42,12 @@ public class FinanceSyncController {
     @RequirePermission("finance:view")
     public Result<FinanceSyncRecordVO> getSyncDetail(@PathVariable Long id) {
         return Result.success(financeService.getSyncDetail(id));
+    }
+
+    @DeleteMapping("/sync/records")
+    @RequirePermission("finance:view")
+    public Result<Void> clearAllSyncRecords() {
+        financeService.clearAllSyncRecords();
+        return Result.success(null);
     }
 }

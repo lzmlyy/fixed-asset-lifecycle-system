@@ -13,7 +13,10 @@
     "axios": "^1.7.2",
     "echarts": "^5.5.0",
     "element-plus": "^2.7.6",
+    "html5-qrcode": "^2.3.8",
+    "jsqr": "^1.4.0",
     "pinia": "^2.1.7",
+    "qrcode": "^1.5.4",
     "vue": "^3.5.39",
     "vue-echarts": "^6.7.3",
     "vue-router": "^4.4.0"

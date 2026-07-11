@@ -72,6 +72,14 @@ public class LifecycleController {
         return Result.success(lifecycleService.createReceive(request));
     }
 
+    @PutMapping("/receive/{id}")
+    @RequirePermission("receive:create")
+    public Result<Void> updateReceive(@PathVariable Long id,
+                                      @Valid @RequestBody ReceiveCreateRequest request) {
+        lifecycleService.updateReceive(id, request);
+        return Result.success();
+    }
+
     // ==================== Transfer ====================
 
     @GetMapping("/transfer/page")
@@ -92,6 +100,14 @@ public class LifecycleController {
         return Result.success(lifecycleService.createTransfer(request));
     }
 
+    @PutMapping("/transfer/{id}")
+    @RequirePermission("transfer:create")
+    public Result<Void> updateTransfer(@PathVariable Long id,
+                                       @Valid @RequestBody TransferCreateRequest request) {
+        lifecycleService.updateTransfer(id, request);
+        return Result.success();
+    }
+
     // ==================== Repair ====================
 
     @GetMapping("/repair/page")
@@ -110,6 +126,14 @@ public class LifecycleController {
     @RequirePermission("repair:create")
     public Result<Long> createRepair(@Valid @RequestBody RepairCreateRequest request) {
         return Result.success(lifecycleService.createRepair(request));
+    }
+
+    @PutMapping("/repair/{id}")
+    @RequirePermission("repair:create")
+    public Result<Void> updateRepair(@PathVariable Long id,
+                                     @Valid @RequestBody RepairCreateRequest request) {
+        lifecycleService.updateRepair(id, request);
+        return Result.success();
     }
 
     @PutMapping("/repair/{id}/complete")
@@ -137,5 +161,43 @@ public class LifecycleController {
     @RequirePermission("scrap:create")
     public Result<Long> createScrap(@Valid @RequestBody ScrapCreateRequest request) {
         return Result.success(lifecycleService.createScrap(request));
+    }
+
+    @PutMapping("/scrap/{id}")
+    @RequirePermission("scrap:create")
+    public Result<Void> updateScrap(@PathVariable Long id,
+                                    @Valid @RequestBody ScrapCreateRequest request) {
+        lifecycleService.updateScrap(id, request);
+        return Result.success();
+    }
+
+    // ======================== Delete ========================
+
+    @DeleteMapping("/receive/{id}")
+    @RequirePermission("receive:create")
+    public Result<Void> deleteReceive(@PathVariable Long id) {
+        lifecycleService.deleteReceive(id);
+        return Result.success();
+    }
+
+    @DeleteMapping("/transfer/{id}")
+    @RequirePermission("transfer:create")
+    public Result<Void> deleteTransfer(@PathVariable Long id) {
+        lifecycleService.deleteTransfer(id);
+        return Result.success();
+    }
+
+    @DeleteMapping("/repair/{id}")
+    @RequirePermission("repair:create")
+    public Result<Void> deleteRepair(@PathVariable Long id) {
+        lifecycleService.deleteRepair(id);
+        return Result.success();
+    }
+
+    @DeleteMapping("/scrap/{id}")
+    @RequirePermission("scrap:create")
+    public Result<Void> deleteScrap(@PathVariable Long id) {
+        lifecycleService.deleteScrap(id);
+        return Result.success();
     }
 }

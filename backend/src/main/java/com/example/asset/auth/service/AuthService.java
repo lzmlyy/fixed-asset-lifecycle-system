@@ -52,6 +52,7 @@ public class AuthService {
         LoginUser loginUser = LoginUser.builder()
                 .userId(user.getId())
                 .username(user.getUsername())
+                .realName(user.getRealName())
                 .roles(roles)
                 .build();
         return LoginResponse.builder()

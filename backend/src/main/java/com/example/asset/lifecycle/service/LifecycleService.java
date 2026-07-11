@@ -222,6 +222,34 @@ public class LifecycleService {
     }
 
     /**
+     * Update receive order (only when DRAFT or REJECTED).
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public void updateReceive(Long id, ReceiveCreateRequest request) {
+        ReceiveOrder order = receiveOrderMapper.selectById(id);
+        if (order == null) {
+            throw new BusinessException(ResultCode.NOT_FOUND, "领用单不存在");
+        }
+        if (!"DRAFT".equals(order.getStatus()) && !"REJECTED".equals(order.getStatus())) {
+            throw new BusinessException(ResultCode.BAD_REQUEST, "仅草稿或已驳回状态可编辑");
+        }
+        Asset asset = requireAsset(request.getAssetId());
+        String beforeStatus = asset.getStatus();
+        if (!"IDLE".equals(beforeStatus)) {
+            throw new BusinessException(ResultCode.BAD_REQUEST, "仅闲置资产可领用，当前状态:" + beforeStatus);
+        }
+        order.setAssetId(request.getAssetId());
+        order.setReceiver(request.getReceiver());
+        order.setReceiverDepartment(request.getReceiverDepartment());
+        order.setReceiveDate(request.getReceiveDate());
+        order.setUsagePurpose(request.getUsagePurpose());
+        order.setBeforeStatus(beforeStatus);
+        order.setStatus("DRAFT");
+        order.setRemark(request.getRemark());
+        receiveOrderMapper.updateById(order);
+    }
+
+    /**
      * Execute receive flow after approval.
      * Called by ApprovalService when the final approval node is approved.
      */
@@ -330,6 +358,37 @@ public class LifecycleService {
     }
 
     /**
+     * Update transfer order (only when DRAFT or REJECTED).
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public void updateTransfer(Long id, TransferCreateRequest request) {
+        TransferOrder order = transferOrderMapper.selectById(id);
+        if (order == null) {
+            throw new BusinessException(ResultCode.NOT_FOUND, "调拨单不存在");
+        }
+        if (!"DRAFT".equals(order.getStatus()) && !"REJECTED".equals(order.getStatus())) {
+            throw new BusinessException(ResultCode.BAD_REQUEST, "仅草稿或已驳回状态可编辑");
+        }
+        Asset asset = requireAsset(request.getAssetId());
+        String beforeStatus = asset.getStatus();
+        if (!TRANSFERABLE_STATUSES.contains(beforeStatus)) {
+            throw new BusinessException(ResultCode.BAD_REQUEST, "当前状态不允许调拨，状态:" + beforeStatus);
+        }
+        order.setAssetId(request.getAssetId());
+        order.setFromDepartment(asset.getDepartment());
+        order.setToDepartment(request.getToDepartment());
+        order.setFromLocation(asset.getLocation());
+        order.setToLocation(request.getToLocation());
+        order.setFromKeeper(asset.getKeeper());
+        order.setToKeeper(request.getToKeeper());
+        order.setTransferDate(request.getTransferDate());
+        order.setBeforeStatus(beforeStatus);
+        order.setStatus("DRAFT");
+        order.setRemark(request.getRemark());
+        transferOrderMapper.updateById(order);
+    }
+
+    /**
      * Execute transfer flow after approval.
      */
     @Transactional(rollbackFor = Exception.class)
@@ -429,6 +488,33 @@ public class LifecycleService {
         order.setCreatedBy(UserContext.getUserId());
         repairOrderMapper.insert(order);
         return order.getId();
+    }
+
+    /**
+     * Update repair order (only when DRAFT or REJECTED).
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public void updateRepair(Long id, RepairCreateRequest request) {
+        RepairOrder order = repairOrderMapper.selectById(id);
+        if (order == null) {
+            throw new BusinessException(ResultCode.NOT_FOUND, "维修单不存在");
+        }
+        if (!"DRAFT".equals(order.getStatus()) && !"REJECTED".equals(order.getStatus())) {
+            throw new BusinessException(ResultCode.BAD_REQUEST, "仅草稿或已驳回状态可编辑");
+        }
+        Asset asset = requireAsset(request.getAssetId());
+        String beforeStatus = asset.getStatus();
+        if (!REPAIRABLE_STATUSES.contains(beforeStatus)) {
+            throw new BusinessException(ResultCode.BAD_REQUEST, "当前状态不允许维修，状态:" + beforeStatus);
+        }
+        order.setAssetId(request.getAssetId());
+        order.setFaultDescription(request.getFaultDescription());
+        order.setRepairVendor(request.getRepairVendor());
+        order.setRepairStartDate(request.getRepairStartDate());
+        order.setBeforeStatus(beforeStatus);
+        order.setStatus("DRAFT");
+        order.setRemark(request.getRemark());
+        repairOrderMapper.updateById(order);
     }
 
     /**
@@ -599,6 +685,117 @@ public class LifecycleService {
         order.setCreatedBy(UserContext.getUserId());
         scrapOrderMapper.insert(order);
         return order.getId();
+    }
+
+    /**
+     * Update scrap order (only when DRAFT or REJECTED).
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public void updateScrap(Long id, ScrapCreateRequest request) {
+        ScrapOrder order = scrapOrderMapper.selectById(id);
+        if (order == null) {
+            throw new BusinessException(ResultCode.NOT_FOUND, "报废单不存在");
+        }
+        if (!"DRAFT".equals(order.getStatus()) && !"REJECTED".equals(order.getStatus())) {
+            throw new BusinessException(ResultCode.BAD_REQUEST, "仅草稿或已驳回状态可编辑");
+        }
+        Asset asset = requireAsset(request.getAssetId());
+        String beforeStatus = asset.getStatus();
+        if (!SCRAPPABLE_STATUSES.contains(beforeStatus)) {
+            throw new BusinessException(ResultCode.BAD_REQUEST, "当前状态不允许报废，状态:" + beforeStatus);
+        }
+        order.setAssetId(request.getAssetId());
+        order.setScrapReason(request.getScrapReason());
+        order.setScrapDate(request.getScrapDate());
+        order.setDisposalMethod(request.getDisposalMethod());
+        order.setResidualValue(request.getResidualValue());
+        order.setBeforeStatus(beforeStatus);
+        order.setStatus("DRAFT");
+        order.setRemark(request.getRemark());
+        scrapOrderMapper.updateById(order);
+    }
+
+    // ======================== Delete ========================
+
+    private static final List<String> DELETABLE_STATUSES = List.of("DRAFT", "REJECTED");
+
+    public void deleteReceive(Long id) {
+        ReceiveOrder order = receiveOrderMapper.selectById(id);
+        if (order == null) throw new BusinessException(ResultCode.NOT_FOUND, "领用单不存在");
+        if (!DELETABLE_STATUSES.contains(order.getStatus())) {
+            throw new BusinessException(ResultCode.BAD_REQUEST, "仅草稿或已驳回状态可删除");
+        }
+        order.setStatus("CANCELLED");
+        receiveOrderMapper.updateById(order);
+    }
+
+    public void deleteTransfer(Long id) {
+        TransferOrder order = transferOrderMapper.selectById(id);
+        if (order == null) throw new BusinessException(ResultCode.NOT_FOUND, "调拨单不存在");
+        if (!DELETABLE_STATUSES.contains(order.getStatus())) {
+            throw new BusinessException(ResultCode.BAD_REQUEST, "仅草稿或已驳回状态可删除");
+        }
+        order.setStatus("CANCELLED");
+        transferOrderMapper.updateById(order);
+    }
+
+    public void deleteRepair(Long id) {
+        RepairOrder order = repairOrderMapper.selectById(id);
+        if (order == null) throw new BusinessException(ResultCode.NOT_FOUND, "维修单不存在");
+        if (!DELETABLE_STATUSES.contains(order.getStatus())) {
+            throw new BusinessException(ResultCode.BAD_REQUEST, "仅草稿或已驳回状态可删除");
+        }
+        order.setStatus("CANCELLED");
+        repairOrderMapper.updateById(order);
+    }
+
+    public void deleteScrap(Long id) {
+        ScrapOrder order = scrapOrderMapper.selectById(id);
+        if (order == null) throw new BusinessException(ResultCode.NOT_FOUND, "报废单不存在");
+        if (!DELETABLE_STATUSES.contains(order.getStatus())) {
+            throw new BusinessException(ResultCode.BAD_REQUEST, "仅草稿或已驳回状态可删除");
+        }
+        order.setStatus("CANCELLED");
+        scrapOrderMapper.updateById(order);
+    }
+
+    /**
+     * Update lifecycle order status when approval is submitted.
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public void updateOrderStatus(String businessType, Long businessId, String status) {
+        switch (businessType) {
+            case "RECEIVE":
+                ReceiveOrder receiveOrder = receiveOrderMapper.selectById(businessId);
+                if (receiveOrder != null) {
+                    receiveOrder.setStatus(status);
+                    receiveOrderMapper.updateById(receiveOrder);
+                }
+                break;
+            case "TRANSFER":
+                TransferOrder transferOrder = transferOrderMapper.selectById(businessId);
+                if (transferOrder != null) {
+                    transferOrder.setStatus(status);
+                    transferOrderMapper.updateById(transferOrder);
+                }
+                break;
+            case "REPAIR":
+                RepairOrder repairOrder = repairOrderMapper.selectById(businessId);
+                if (repairOrder != null) {
+                    repairOrder.setStatus(status);
+                    repairOrderMapper.updateById(repairOrder);
+                }
+                break;
+            case "SCRAP":
+                ScrapOrder scrapOrder = scrapOrderMapper.selectById(businessId);
+                if (scrapOrder != null) {
+                    scrapOrder.setStatus(status);
+                    scrapOrderMapper.updateById(scrapOrder);
+                }
+                break;
+            default:
+                throw new BusinessException(ResultCode.BAD_REQUEST, "不支持的业务类型: " + businessType);
+        }
     }
 
     /**

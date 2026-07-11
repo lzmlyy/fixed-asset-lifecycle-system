@@ -15,6 +15,9 @@ import com.example.asset.context.UserContext;
 import com.example.asset.lifecycle.service.LifecycleService;
 import com.example.asset.user.entity.SysUser;
 import com.example.asset.user.mapper.SysUserMapper;
+import jakarta.annotation.PostConstruct;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -93,6 +96,9 @@ public class ApprovalService {
         record.setComment(req.getRemark());
         record.setStatus("APPROVING");
         approvalRecordMapper.insert(record);
+
+        // Update lifecycle order status to APPROVING
+        lifecycleService.updateOrderStatus(req.getBusinessType(), req.getBusinessId(), "APPROVING");
 
         return instance.getId();
     }
@@ -215,7 +221,8 @@ public class ApprovalService {
         record.setApprovedAt(LocalDateTime.now());
         approvalRecordMapper.insert(record);
 
-        // Do NOT modify asset status — rejection leaves asset untouched
+        // Set lifecycle order status to REJECTED so it shows clearly on the frontend
+        lifecycleService.updateOrderStatus(instance.getBusinessType(), instance.getBusinessId(), "REJECTED");
     }
 
     // ======================== Todo Page ========================
@@ -364,5 +371,37 @@ public class ApprovalService {
         } catch (Exception ignored) {
         }
         return "用户" + userId;
+    }
+
+    // ======================== Data Repair ========================
+
+    private static final Logger log = LoggerFactory.getLogger(ApprovalService.class);
+
+    /**
+     * Fix inconsistent data: orders that were rejected before the fix was deployed
+     * may still have APPROVING status. This method syncs them to DRAFT on startup.
+     */
+    @PostConstruct
+    public void repairInconsistentOrders() {
+        try {
+            List<ApprovalInstance> rejectedInstances = approvalInstanceMapper.selectList(
+                    new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<ApprovalInstance>()
+                            .eq(ApprovalInstance::getStatus, "REJECTED"));
+            int fixed = 0;
+            for (ApprovalInstance instance : rejectedInstances) {
+                try {
+                    lifecycleService.updateOrderStatus(instance.getBusinessType(), instance.getBusinessId(), "REJECTED");
+                    fixed++;
+                } catch (Exception e) {
+                    log.warn("Failed to repair order {} type {}: {}", instance.getBusinessId(),
+                            instance.getBusinessType(), e.getMessage());
+                }
+            }
+            if (fixed > 0) {
+                log.info("Repaired {} inconsistent lifecycle orders (rejected approval -> REJECTED)", fixed);
+            }
+        } catch (Exception e) {
+            log.warn("Order status repair skipped: {}", e.getMessage());
+        }
     }
 }

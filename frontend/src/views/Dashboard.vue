@@ -41,10 +41,10 @@
 
     <!-- 状态统计卡 -->
     <div v-if="showStatusStats" class="stats-grid stats-grid-status">
-      <DataCard label="使用中" :value="stats.inUseCount ?? 0" unit="件" variant="success" sub="正常使用" />
-      <DataCard label="闲置" :value="stats.idleCount ?? 0" unit="件" variant="info" sub="未投入使用" />
-      <DataCard label="维修中" :value="stats.repairingCount ?? 0" unit="件" variant="warning" sub="待修复" />
-      <DataCard label="待报废" :value="stats.waitingScrapCount ?? 0" unit="件" variant="danger" sub="待处置" />
+      <DataCard label="使用中" :value="stats.inUseCount ?? 0" unit="件" variant="success" sub="正常使用" clickable @click="goAssets('IN_USE')" />
+      <DataCard label="闲置" :value="stats.idleCount ?? 0" unit="件" variant="info" sub="未投入使用" clickable @click="goAssets('IDLE')" />
+      <DataCard label="维修中" :value="stats.repairingCount ?? 0" unit="件" variant="warning" sub="待修复" clickable @click="goAssets('REPAIRING')" />
+      <DataCard label="待报废" :value="stats.waitingScrapCount ?? 0" unit="件" variant="danger" sub="待处置" clickable @click="goAssets('WAITING_SCRAP')" />
     </div>
 
     <!-- 图表区 -->
@@ -300,6 +300,9 @@ function bizTypeTag(t: string): string {
 }
 function handleNavigate(to: string) {
   router.push(to)
+}
+function goAssets(status: string) {
+  router.push({ path: '/assets', query: { status } })
 }
 
 async function fetchStats() { try { const r = await getDashboardStats(); if (r.code === 200) stats.value = r.data } catch {} }

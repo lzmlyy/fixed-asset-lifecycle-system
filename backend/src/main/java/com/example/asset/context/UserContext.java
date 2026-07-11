@@ -25,6 +25,11 @@ public final class UserContext {
         return loginUser == null ? null : loginUser.getUsername();
     }
 
+    public static String getRealName() {
+        LoginUser loginUser = USER_HOLDER.get();
+        return loginUser == null ? null : loginUser.getRealName();
+    }
+
     public static void clear() {
         USER_HOLDER.remove();
     }

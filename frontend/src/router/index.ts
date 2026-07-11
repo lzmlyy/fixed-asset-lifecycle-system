@@ -88,7 +88,7 @@ const router = createRouter({
           path: 'inventory/tasks',
           name: 'InventoryTask',
           component: () => import('@/views/inventory/InventoryTask.vue'),
-          meta: { title: '盘点任务', permission: 'inventory:view' }
+          meta: { title: '盘点管理', permission: 'inventory:view' }
         },
         {
           path: 'inventory/tasks/:id/execute',
@@ -112,7 +112,7 @@ const router = createRouter({
           path: 'finance/sync',
           name: 'FinanceSync',
           component: () => import('@/views/finance/FinanceSync.vue'),
-          meta: { title: '财务数据模拟同步', permission: 'finance:view' }
+          meta: { title: '财务数据同步', permission: 'finance:view' }
         },
         {
           path: 'warning-center',

@@ -1,6 +1,9 @@
 -- 第五阶段：用户管理与RBAC权限
 -- 新增 sys_permission（权限项表）和 sys_role_permission（角色权限关联表）
 
+USE fixed_asset_lifecycle_system;
+SET NAMES utf8mb4;
+
 DROP TABLE IF EXISTS sys_permission;
 CREATE TABLE sys_permission (
     id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键',

@@ -27,6 +27,10 @@ request.interceptors.response.use(
     if (res.code === 200 || res.code === undefined) {
       return res
     }
+    if (res.message === '已是最新数据') {
+      ElMessage.warning(res.message)
+      return Promise.reject(new Error(res.message))
+    }
     ElMessage.error(res.message || '请求失败')
     return Promise.reject(new Error(res.message || '请求失败'))
   },

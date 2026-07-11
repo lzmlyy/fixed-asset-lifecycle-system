@@ -28,6 +28,14 @@ export function createReceive(data: Record<string, any>) {
   return request.post<any, any>('/lifecycle/receive', data)
 }
 
+export function updateReceive(id: number, data: Record<string, any>) {
+  return request.put<any, any>(`/lifecycle/receive/${id}`, data)
+}
+
+export function deleteReceive(id: number) {
+  return request.delete<any, any>(`/lifecycle/receive/${id}`)
+}
+
 export function getTransferPage(params: Record<string, any>) {
   return request.get<any, any>('/lifecycle/transfer/page', { params })
 }
@@ -40,6 +48,14 @@ export function createTransfer(data: Record<string, any>) {
   return request.post<any, any>('/lifecycle/transfer', data)
 }
 
+export function updateTransfer(id: number, data: Record<string, any>) {
+  return request.put<any, any>(`/lifecycle/transfer/${id}`, data)
+}
+
+export function deleteTransfer(id: number) {
+  return request.delete<any, any>(`/lifecycle/transfer/${id}`)
+}
+
 export function getRepairPage(params: Record<string, any>) {
   return request.get<any, any>('/lifecycle/repair/page', { params })
 }
@@ -50,6 +66,14 @@ export function getRepairDetail(id: number) {
 
 export function createRepair(data: Record<string, any>) {
   return request.post<any, any>('/lifecycle/repair', data)
+}
+
+export function updateRepair(id: number, data: Record<string, any>) {
+  return request.put<any, any>(`/lifecycle/repair/${id}`, data)
+}
+
+export function deleteRepair(id: number) {
+  return request.delete<any, any>(`/lifecycle/repair/${id}`)
 }
 
 export function completeRepair(id: number, data: Record<string, any>) {
@@ -66,4 +90,12 @@ export function getScrapDetail(id: number) {
 
 export function createScrap(data: Record<string, any>) {
   return request.post<any, any>('/lifecycle/scrap', data)
+}
+
+export function updateScrap(id: number, data: Record<string, any>) {
+  return request.put<any, any>(`/lifecycle/scrap/${id}`, data)
+}
+
+export function deleteScrap(id: number) {
+  return request.delete<any, any>(`/lifecycle/scrap/${id}`)
 }

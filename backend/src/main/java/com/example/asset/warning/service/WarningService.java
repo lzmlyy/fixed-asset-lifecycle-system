@@ -165,7 +165,7 @@ public class WarningService {
             missingSync.setBusinessType("FINANCE");
             missingSync.setSource(SOURCE_SYSTEM);
             missingSync.setCreatedAt(nowStr);
-            missingSync.setSuggestion("建议尽快执行本月财务模拟同步");
+            missingSync.setSuggestion("建议尽快执行本月财务数据同步");
             all.add(missingSync);
         }
 

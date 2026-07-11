@@ -82,3 +82,9 @@ export function rejectApproval(instanceId: number, data: { action: string; comme
     `/approval/${instanceId}/reject`, data
   )
 }
+
+export function submitApproval(data: { businessType: string; businessId: number; remark?: string }) {
+  return request.post<any, { code: number; message: string; data: number }>(
+    '/approval/submit', data
+  )
+}

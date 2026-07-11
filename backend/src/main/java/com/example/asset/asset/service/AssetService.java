@@ -19,9 +19,17 @@ import com.example.asset.common.BusinessException;
 import com.example.asset.common.PageResult;
 import com.example.asset.common.ResultCode;
 import com.example.asset.context.UserContext;
+import com.google.zxing.BarcodeFormat;
+import com.google.zxing.client.j2se.MatrixToImageWriter;
+import com.google.zxing.common.BitMatrix;
+import com.google.zxing.qrcode.QRCodeWriter;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import javax.imageio.ImageIO;
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
@@ -129,6 +137,21 @@ public class AssetService {
         return Arrays.stream(AssetStatusEnum.values())
                 .map(item -> new StatusOptionVO(item.getCode(), item.getLabel()))
                 .toList();
+    }
+
+    public byte[] generateQrCode(Long id) {
+        Asset asset = requireAsset(id);
+        try {
+            QRCodeWriter writer = new QRCodeWriter();
+            BitMatrix matrix = writer.encode(asset.getAssetCode(),
+                    BarcodeFormat.QR_CODE, 300, 300);
+            BufferedImage image = MatrixToImageWriter.toBufferedImage(matrix);
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            ImageIO.write(image, "png", baos);
+            return baos.toByteArray();
+        } catch (Exception e) {
+            throw new BusinessException(ResultCode.INTERNAL_ERROR, "二维码生成失败");
+        }
     }
 
     private AssetCategory requireCategory(Long categoryId) {
